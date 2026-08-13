@@ -32,6 +32,7 @@ yarn-error.log*
 
 # env files (can opt-in for committing if needed)
 .env*
+!.env.example
 
 # vercel
 .vercel
@@ -39,3 +40,35 @@ yarn-error.log*
 # typescript
 *.tsbuildinfo
 next-env.d.ts
+
+# local databases (also keeps Tailwind's source scan out of them)
+*.db
+*.db-shm
+*.db-wal
+*.duckdb
+*.duckdb.wal
+*.sqlite
+*.sqlite3
+
+# mastra: build output, dev server lock, bundled Studio assets
+/.mastra/
+
+# agent skills — reinstallable from skills-lock.json, which IS committed
+/.claude/skills/
+/.agents/skills/
+.claude/settings.local.json
+
+# editor
+.idea/
+.vscode/*
+!.vscode/extensions.json
+!.vscode/settings.json
+*.swp
+
+# OS
+Thumbs.db
+desktop.ini
+
+# logs
+logs/
+*.log
