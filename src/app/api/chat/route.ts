@@ -4,6 +4,14 @@ import { createUIMessageStreamResponse } from 'ai'
 import { mastra } from '@/mastra'
 import { NextResponse } from 'next/server'
 
+// Mastra needs Node APIs and a real pg socket, so this route can't run on Edge.
+export const runtime = 'nodejs'
+// Route reads live memory from the DB; never let Next serve a cached GET.
+export const dynamic = 'force-dynamic'
+// Vercel Hobby permits up to 300s. Agent runs with tool calls can outlast the
+// default, so give the stream room without reserving the whole ceiling.
+export const maxDuration = 60
+
 const THREAD_ID = 'example-user-id'
 const RESOURCE_ID = 'weather-chat'
 

@@ -96,6 +96,11 @@ export const AgentTool = memo(
         ? tool.jsonSchema
         : tool.inputSchema;
 
+    // `description` may be a lazy function that needs call context we don't
+    // have here, so only render it when it's already a plain string.
+    const description =
+      typeof tool.description === "string" ? tool.description : undefined;
+
     return (
       <AccordionItem
         className={cn("border-b last:border-b-0", className)}
@@ -103,7 +108,7 @@ export const AgentTool = memo(
         {...props}
       >
         <AccordionTrigger className="px-3 py-2 text-sm hover:no-underline">
-          {tool.description ?? "No description"}
+          {description ?? "No description"}
         </AccordionTrigger>
         <AccordionContent className="px-3 pb-3">
           <div className="rounded-md bg-muted/50">

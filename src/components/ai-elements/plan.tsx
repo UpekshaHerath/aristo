@@ -127,6 +127,29 @@ export const PlanFooter = (props: PlanFooterProps) => (
 
 export type PlanTriggerProps = ComponentProps<typeof CollapsibleTrigger>;
 
-export const PlanTrigger = ({ className, ...props }: PlanTriggerProps) => (
-  <CollapsibleTrigger render={<Button className={cn("size-8", className)} data-slot="plan-trigger" size="icon" variant="ghost" {...props} />}><ChevronsUpDownIcon className="size-4" /><span className="sr-only">Toggle plan</span></CollapsibleTrigger>
+// `render` and `style` are typed against CollapsibleTrigger's own state, so they
+// stay on the trigger rather than being spread onto the Button standing in for it.
+export const PlanTrigger = ({
+  className,
+  render,
+  style,
+  ...props
+}: PlanTriggerProps) => (
+  <CollapsibleTrigger
+    style={style}
+    render={
+      render ?? (
+        <Button
+          className={cn("size-8", className)}
+          data-slot="plan-trigger"
+          size="icon"
+          variant="ghost"
+          {...props}
+        />
+      )
+    }
+  >
+    <ChevronsUpDownIcon className="size-4" />
+    <span className="sr-only">Toggle plan</span>
+  </CollapsibleTrigger>
 );

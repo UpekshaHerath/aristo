@@ -1,16 +1,48 @@
 "use client"
 
+import * as React from "react"
 import { PreviewCard as PreviewCardPrimitive } from "@base-ui/react/preview-card"
 
 import { cn } from "@/lib/utils"
 
-function HoverCard({ ...props }: PreviewCardPrimitive.Root.Props) {
-  return <PreviewCardPrimitive.Root data-slot="hover-card" {...props} />
+/**
+ * Base UI moved the hover delays off `PreviewCard.Root` and onto
+ * `PreviewCard.Trigger`, renaming `openDelay` to `delay`. Callers still pass
+ * them to the root, so accept them here and hand them down to the trigger.
+ */
+const HoverCardDelayContext = React.createContext<{
+  delay?: number
+  closeDelay?: number
+}>({})
+
+type HoverCardProps = PreviewCardPrimitive.Root.Props & {
+  openDelay?: number
+  closeDelay?: number
+}
+
+function HoverCard({ openDelay, closeDelay, ...props }: HoverCardProps) {
+  const delays = React.useMemo(
+    () => ({ delay: openDelay, closeDelay }),
+    [openDelay, closeDelay]
+  )
+
+  return (
+    <HoverCardDelayContext.Provider value={delays}>
+      <PreviewCardPrimitive.Root data-slot="hover-card" {...props} />
+    </HoverCardDelayContext.Provider>
+  )
 }
 
 function HoverCardTrigger({ ...props }: PreviewCardPrimitive.Trigger.Props) {
+  const { delay, closeDelay } = React.useContext(HoverCardDelayContext)
+
   return (
-    <PreviewCardPrimitive.Trigger data-slot="hover-card-trigger" {...props} />
+    <PreviewCardPrimitive.Trigger
+      data-slot="hover-card-trigger"
+      delay={delay}
+      closeDelay={closeDelay}
+      {...props}
+    />
   )
 }
 

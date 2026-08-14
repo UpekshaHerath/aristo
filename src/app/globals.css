@@ -2,10 +2,10 @@
 @import "tw-animate-css";
 @import "shadcn/tailwind.css";
 
-/* Local DB files live at the project root; keep the source scan out of them. */
+/* Local dev DB files live at the project root; keep the source scan out of them. */
 @source not "../../*.db";
-@source not "../../*.duckdb";
-@source not "../../*.duckdb.wal";
+@source not "../../*.db-shm";
+@source not "../../*.db-wal";
 
 @custom-variant dark (&:is(.dark *));
 

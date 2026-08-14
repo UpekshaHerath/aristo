@@ -408,6 +408,14 @@ export const usePromptInputReferencedSources = () => {
   return ctx;
 };
 
+/**
+ * Base UI hands `onSelect` a wrapped synthetic event, not a native DOM `Event`.
+ * Derive the type from the component so it tracks future Base UI changes.
+ */
+type DropdownMenuItemSelectEvent = Parameters<
+  NonNullable<ComponentProps<typeof DropdownMenuItem>["onSelect"]>
+>[0];
+
 export type PromptInputActionAddAttachmentsProps = ComponentProps<
   typeof DropdownMenuItem
 > & {
@@ -421,7 +429,7 @@ export const PromptInputActionAddAttachments = ({
   const attachments = usePromptInputAttachments();
 
   const handleSelect = useCallback(
-    (e: Event) => {
+    (e: DropdownMenuItemSelectEvent) => {
       e.preventDefault();
       attachments.openFileDialog();
     },
@@ -449,7 +457,7 @@ export const PromptInputActionAddScreenshot = ({
   const attachments = usePromptInputAttachments();
 
   const handleSelect = useCallback(
-    async (event: Event) => {
+    async (event: DropdownMenuItemSelectEvent) => {
       onSelect?.(event);
       if (event.defaultPrevented) {
         return;
@@ -1120,6 +1128,11 @@ export type PromptInputButtonTooltip =
       side?: ComponentProps<typeof TooltipContent>["side"];
     };
 
+/** Base UI wraps click events too; derive rather than hand-writing MouseEvent. */
+type InputGroupButtonClickEvent = Parameters<
+  NonNullable<ComponentProps<typeof InputGroupButton>["onClick"]>
+>[0];
+
 export type PromptInputButtonProps = ComponentProps<typeof InputGroupButton> & {
   tooltip?: PromptInputButtonTooltip;
 };
@@ -1232,7 +1245,7 @@ export const PromptInputSubmit = ({
   }
 
   const handleClick = useCallback(
-    (e: React.MouseEvent<HTMLButtonElement>) => {
+    (e: InputGroupButtonClickEvent) => {
       if (isGenerating && onStop) {
         e.preventDefault();
         onStop();
