@@ -31,6 +31,32 @@ function bucketFor(updatedAt: string): string {
   return 'Earlier'
 }
 
+/**
+ * The one detail a heading can't carry: which chat within the group.
+ *
+ * Under "Today" the useful distinguisher is the clock, under "This week" it is
+ * the weekday, and further back it is the date - so the format follows the
+ * bucket rather than being one shape for everything. Kept to a few characters
+ * either way, because it sits beside a title that deserves the room.
+ *
+ * Safe to format with the visitor's locale: the list only ever renders after
+ * the threads fetch resolves on the client, so there is no server render of
+ * this text to disagree with.
+ */
+function stampFor(updatedAt: string, bucket: string): string {
+  const updated = new Date(updatedAt)
+  if (bucket === 'Today') {
+    return updated.toLocaleTimeString(undefined, {
+      hour: 'numeric',
+      minute: '2-digit',
+    })
+  }
+  if (bucket === 'Yesterday' || bucket === 'This week') {
+    return updated.toLocaleDateString(undefined, { weekday: 'short' })
+  }
+  return updated.toLocaleDateString(undefined, { day: 'numeric', month: 'short' })
+}
+
 /*
  * The sidebar while the thread list is still in flight.
  *
@@ -40,7 +66,7 @@ function bucketFor(updatedAt: string): string {
  */
 function ThreadListSkeleton() {
   return (
-    <div role="status" aria-busy="true" className="flex flex-col gap-4">
+    <div role="status" aria-busy="true" className="flex flex-col">
       <span className="sr-only">Loading chats</span>
       {[
         // Widths only, in row order. Uneven on purpose: equal bars read as a
@@ -48,8 +74,13 @@ function ThreadListSkeleton() {
         ['4.5rem', ['72%', '88%', '61%']],
         ['5.5rem', ['80%', '54%']],
       ].map(([heading, rows], group) => (
-        <section key={group} aria-hidden className="flex flex-col gap-1">
-          <Skeleton className="mx-3 h-3 rounded-sm" style={{ width: heading as string }} />
+        <section key={group} aria-hidden className="flex flex-col">
+          {/* Same rhythm as a real heading, so nothing shifts when the fetch
+              lands and the skeleton is swapped out. */}
+          <Skeleton
+            className="mx-3 mt-4 mb-1.5 h-3 rounded-sm"
+            style={{ width: heading as string }}
+          />
           <div className="flex flex-col gap-0.5">
             {(rows as string[]).map((width, row) => (
               <div key={row} className="flex min-h-11 items-center px-3">
@@ -98,10 +129,19 @@ export function ThreadList({
   }
 
   return (
-    <div className="flex flex-col gap-4">
+    // bg-inherit runs down the whole chain so the sticky headings below have a
+    // ground to sit on. The sidebar and the mobile sheet are different colours,
+    // and inheriting means neither has to be named here.
+    <div className="flex flex-col bg-inherit">
       {groups.map((group) => (
-        <section key={group.bucket} className="flex flex-col gap-1">
-          <h2 className="px-3 font-medium text-muted-foreground text-xs uppercase tracking-wide">
+        <section key={group.bucket} className="flex flex-col bg-inherit">
+          {/*
+           * Sticky, because the heading is the only thing telling you whether
+           * you are looking at today or at last month - and it used to scroll
+           * away the moment you started looking. The list is the one place a
+           * student scrolls in this app, so it has to answer that while moving.
+           */}
+          <h2 className="sticky top-0 z-10 bg-inherit px-3 pt-4 pb-1.5 font-medium text-[0.6875rem] text-muted-foreground uppercase tracking-[0.08em]">
             {group.bucket}
           </h2>
           <ul className="flex flex-col gap-0.5">
@@ -125,7 +165,21 @@ export function ThreadList({
                         : 'text-foreground/80 before:bg-transparent hover:bg-accent/60'
                     )}
                   >
-                    <span className="truncate">{thread.title}</span>
+                    <span className="min-w-0 flex-1 truncate">{thread.title}</span>
+                    {/*
+                     * Sits inside the row's right padding, which already clears
+                     * the actions button - so the stamp and the menu never
+                     * fight for the same space and the stamp needs no
+                     * hover-hiding trick to stay out of the way.
+                     */}
+                    <span
+                      className={cn(
+                        'ml-2 shrink-0 text-[0.6875rem] tabular-nums',
+                        active ? 'text-accent-foreground/60' : 'text-muted-foreground/70'
+                      )}
+                    >
+                      {stampFor(thread.updatedAt, group.bucket)}
+                    </span>
                   </button>
 
                   <DropdownMenu>

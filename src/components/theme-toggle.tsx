@@ -39,7 +39,10 @@ export function ThemeToggle() {
             onClick={() => setTheme(value)}
             className={cn(
               'flex size-7 items-center justify-center rounded-full text-muted-foreground transition-colors',
-              'hover:text-foreground focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-1',
+              'focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-1',
+              // A colour shift on a 14px icon is easy to miss, so the target
+              // itself lights up - which also shows how big the target is.
+              'hover:bg-accent/60 hover:text-foreground',
               active && 'bg-accent text-foreground'
             )}
           >

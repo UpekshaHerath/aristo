@@ -113,9 +113,12 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
                       'flex min-h-11 w-full items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm',
                       'transition-[color,background-color,border-color,transform] duration-(--duration-fast) ease-(--ease-out-soft) active:scale-[0.98]',
                       'focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-2',
+                      // Both states answer the pointer. Only giving the unchosen
+                      // ones a hover made a chosen subject feel stuck - nothing
+                      // moved, so nothing said it could be unchosen.
                       active
-                        ? 'border-primary/50 bg-primary/10'
-                        : 'bg-card hover:bg-accent'
+                        ? 'border-primary/50 bg-primary/10 hover:border-primary/70 hover:bg-primary/15'
+                        : 'bg-card hover:border-primary/30 hover:bg-accent'
                     )}
                   >
                     <span

@@ -188,6 +188,54 @@
   }
 
   /*
+   * A pointer over anything that can be pressed.
+   *
+   * A browser's own cursor for <button> is the text arrow, which suits a form
+   * on a document and is wrong for an app: nearly every control here is pressed
+   * like a link, and an arrow over it reads as "nothing happens if you click".
+   * Anchors already get this from the UA sheet; buttons, menu items and the
+   * various ARIA-role controls do not, and were being patched one at a time
+   * with a `cursor-pointer` class - which only ever covers what someone
+   * remembered.
+   *
+   * The `:not()`s are what keep it honest, and they are also what gives the
+   * rule enough specificity to beat the UA default.
+   */
+  :where(
+    button,
+    summary,
+    select,
+    label[for],
+    [role="button"],
+    [role="menuitem"],
+    [role="menuitemcheckbox"],
+    [role="menuitemradio"],
+    [role="option"],
+    [role="tab"],
+    [role="switch"]
+  ):not(:disabled):not([aria-disabled="true"]):not([data-disabled]) {
+    cursor: pointer;
+  }
+
+  /* The refusal needs a cursor too, or a disabled control just reads as broken. */
+  :where(button, input, select, textarea):disabled,
+  :where([aria-disabled="true"], [data-disabled]) {
+    cursor: not-allowed;
+  }
+
+  /*
+   * The grey flash Chrome and Safari paint over a tapped element is a phone-era
+   * default that lands a beat after the press and outlasts it. Every control
+   * here has its own `:active` state, which is faster and on-brand; this stops
+   * the two fighting.
+   */
+  @media (hover: none) {
+    * {
+      -webkit-tap-highlight-color: transparent;
+    }
+  }
+
+  /*
    * One honest global opt-out. Vestibular disorders make large transforms
    * genuinely unpleasant, and this is a product students use for hours.
    *

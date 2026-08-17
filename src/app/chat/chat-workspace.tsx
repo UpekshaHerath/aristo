@@ -7,6 +7,7 @@ import { useChat } from '@ai-sdk/react'
 import {
   Check,
   Copy,
+  LogOut,
   PanelLeft,
   RotateCcw,
   SlidersHorizontal,
@@ -49,6 +50,13 @@ import {
   DialogTitle,
 } from '@/components/ui/dialog'
 import { Sheet, SheetContent } from '@/components/ui/sheet'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -467,34 +475,64 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     />
   )
 
+  /*
+   * The account row.
+   *
+   * Was three stacked controls - an email line, then Subjects and Sign out side
+   * by side - which gave the two rarest actions in the app the most permanent
+   * furniture in the sidebar. They now live behind the account itself, which is
+   * where someone goes looking for them, and the footer is a single row.
+   */
   const accountFooter = (
-    <div className="flex flex-col gap-3 border-t p-3">
-      <div className="flex items-center justify-between gap-2">
-        <span className="truncate text-muted-foreground text-xs">{userEmail}</span>
-        <ThemeToggle />
-      </div>
-      <div className="flex gap-2">
-        {/* This one really is a link, not a button: it navigates to /settings,
-            so it should be middle-clickable and open in a new tab. Base UI
-            assumes a native <button> unless told otherwise, and warns because
-            rendering an <a> would silently drop button semantics. Here dropping
-            them is the intent, so nativeButton is false. */}
-        <Button
-          variant="outline"
-          size="sm"
-          className="flex-1"
-          nativeButton={false}
-          render={<Link href="/settings" />}
+    <div className="flex items-center gap-2 border-t p-2">
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              variant="ghost"
+              // Left-aligned and greedy: the email is the label, so it should
+              // read as a line of text you can press, not a centred caption.
+              className="h-9 min-w-0 flex-1 justify-start gap-2 px-1.5 font-normal"
+              aria-label="Account menu"
+            />
+          }
         >
-          <SlidersHorizontal className="size-3.5" />
-          Subjects
-        </Button>
-        <form action="/auth/signout" method="post" className="flex-1">
-          <Button type="submit" variant="outline" size="sm" className="w-full">
-            Sign out
-          </Button>
-        </form>
-      </div>
+          <span
+            aria-hidden
+            className="flex size-6 shrink-0 items-center justify-center rounded-full bg-primary/15 font-medium text-[0.6875rem] text-primary uppercase"
+          >
+            {userEmail.slice(0, 1)}
+          </span>
+          <span className="min-w-0 flex-1 truncate text-left text-muted-foreground text-xs">
+            {userEmail}
+          </span>
+        </DropdownMenuTrigger>
+
+        {/* Opens upward - it is pinned to the bottom of the sidebar, and on a
+            phone it is inches from the bottom of the screen. */}
+        <DropdownMenuContent align="start" side="top" className="w-56">
+          {/* Really a link, not a button: it navigates to /settings, so it
+              should be middle-clickable and open in a new tab. Base UI assumes
+              a native <button> unless told otherwise, and warns because
+              rendering an <a> would silently drop button semantics. Here
+              dropping them is the intent, so nativeButton is false. */}
+          <DropdownMenuItem nativeButton={false} render={<Link href="/settings" />}>
+            <SlidersHorizontal className="size-3.5" />
+            Subjects
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          {/* Still a real form post rather than a click handler - sign-out has
+              to clear an httpOnly cookie, which only the server can do. */}
+          <form action="/auth/signout" method="post">
+            <DropdownMenuItem render={<button type="submit" className="w-full" />}>
+              <LogOut className="size-3.5" />
+              Sign out
+            </DropdownMenuItem>
+          </form>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <ThemeToggle />
     </div>
   )
 
@@ -509,7 +547,9 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
             New
           </Button>
         </div>
-        <nav className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-3">
+        {/* bg-inherit, so the sticky group headings inside have the sidebar's
+            own colour to sit on as rows scroll under them. */}
+        <nav className="min-h-0 flex-1 overflow-y-auto bg-inherit px-1.5 pb-3">
           {navigation}
         </nav>
         {accountFooter}
@@ -525,7 +565,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
               New chat
             </Button>
           </div>
-          <nav className="min-h-0 flex-1 overflow-y-auto px-1.5 pb-2">
+          <nav className="min-h-0 flex-1 overflow-y-auto bg-inherit px-1.5 pb-2">
             {navigation}
           </nav>
           {accountFooter}
@@ -617,7 +657,10 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                           {/* Only once the answer is settled - a copy button on
                               half-streamed text copies a truncated answer. */}
                           {isAssistant && !busy && (
-                            <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
+                            // Hidden until hovered on a desktop, always present
+                            // on a touch screen. A phone has no hover, so the
+                            // copy button was simply unreachable there.
+                            <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100 [@media(hover:none)]:opacity-100">
                               <CopyAnswer text={part.text} />
                             </MessageActions>
                           )}
@@ -631,7 +674,11 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                           <ToolHeader
                             type={(part as ToolUIPart).type}
                             state={(part as ToolUIPart).state || 'output-available'}
-                            className="cursor-pointer"
+                            // The pointer now comes from the base layer. What
+                            // was missing is the other half: a header that
+                            // expands on click but never reacts to the pointer
+                            // gives no sign it is a control at all.
+                            className="rounded-md transition-colors hover:bg-accent/50"
                           />
                           <ToolContent>
                             <ToolInput input={(part as ToolUIPart).input || {}} />
