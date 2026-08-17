@@ -12,7 +12,16 @@ export type ConversationProps = ComponentProps<typeof StickToBottom>;
 
 export const Conversation = ({ className, ...props }: ConversationProps) => (
   <StickToBottom
-    className={cn("relative flex-1 overflow-y-hidden", className)}
+    /*
+     * `overflow-hidden`, not `overflow-y-hidden`.
+     *
+     * A box cannot be `hidden` on one axis and `visible` on the other - the
+     * spec makes the visible one compute to `auto`. So `overflow-y-hidden`
+     * quietly turned this into a horizontal scroller, and anything reaching a
+     * pixel past the content box let the whole conversation slide sideways.
+     * Naming both axes is what closes that off.
+     */
+    className={cn("relative flex-1 overflow-hidden", className)}
     initial="smooth"
     resize="smooth"
     role="log"

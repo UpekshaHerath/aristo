@@ -23,9 +23,11 @@ export function PasswordField({
   minLength,
   required = true,
   hint,
+  error,
   className,
   onFocusChange,
   onRevealChange,
+  onBlur,
 }: {
   label?: string
   value: string
@@ -36,6 +38,12 @@ export function PasswordField({
   required?: boolean
   /** Shown under the field - requirements, not errors. */
   hint?: string
+  /**
+   * What is wrong with this field. Takes the hint's place while set, so the
+   * requirement and the complaint about it never stack up as two lines saying
+   * nearly the same thing.
+   */
+  error?: string
   className?: string
   /*
    * Both optional, and only for reacting to the field - never for reading it.
@@ -44,10 +52,22 @@ export function PasswordField({
    */
   onFocusChange?: (focused: boolean) => void
   onRevealChange?: (revealed: boolean) => void
+  /** Fired when focus leaves the field itself - the moment to start validating. */
+  onBlur?: () => void
 }) {
   const id = useId()
+  const messageId = `${id}-message`
   const [revealed, setRevealed] = useState(false)
   const [capsLock, setCapsLock] = useState(false)
+
+  /*
+   * One line under the field, never a stack of them.
+   *
+   * Order is by what blocks the student. An error is the reason the form will
+   * not go through, so it wins; Caps Lock is a warning about what they are
+   * typing, which beats the hint restating a requirement they can already read.
+   */
+  const message = error ?? (capsLock ? 'Caps Lock is on.' : hint)
 
   // Read the modifier from the event rather than tracking keydown/keyup: this
   // stays correct when Caps Lock was already on before the field was focused.
@@ -91,7 +111,15 @@ export function PasswordField({
           onChange={(e) => onChange(e.target.value)}
           onKeyDown={trackCapsLock}
           onKeyUp={trackCapsLock}
-          onBlur={() => setCapsLock(false)}
+          onBlur={() => {
+            setCapsLock(false)
+            onBlur?.()
+          }}
+          aria-invalid={error ? true : undefined}
+          // Points at whichever line is currently under the field, so a screen
+          // reader announces the complaint along with the field rather than
+          // leaving it as loose text further down the form.
+          aria-describedby={message ? messageId : undefined}
           // Room for the toggle, so a long password never runs under the icon.
           className="pr-10"
         />
@@ -127,12 +155,23 @@ export function PasswordField({
         </button>
       </div>
 
-      {capsLock ? (
-        <p role="status" className="text-highlight text-xs">
-          Caps Lock is on.
+      {message ? (
+        <p
+          id={messageId}
+          // Errors are announced, hints are not - a hint read out on focus is
+          // noise, an unexplained rejected form is not.
+          role={error ? 'alert' : capsLock ? 'status' : undefined}
+          className={cn(
+            'text-xs',
+            error
+              ? 'text-destructive'
+              : capsLock
+                ? 'text-highlight'
+                : 'text-muted-foreground'
+          )}
+        >
+          {message}
         </p>
-      ) : hint ? (
-        <p className="text-muted-foreground text-xs">{hint}</p>
       ) : null}
     </div>
   )

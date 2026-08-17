@@ -592,8 +592,22 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                               isAssistant
                                 ? // Long-form explanation, so give it reading
                                   // typography rather than chat-bubble sizing.
-                                  'text-[0.9375rem] leading-relaxed [&_h2]:mt-6 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-5 [&_h3]:font-semibold [&_h3]:text-base [&_li]:leading-relaxed [&_p]:leading-relaxed'
-                                : 'bubble-student overflow-visible px-4 py-2.5 text-[0.9375rem] leading-relaxed group-[.is-user]:rounded-[1.35rem] group-[.is-user]:rounded-br-[0.55rem] group-[.is-user]:bg-[var(--bubble-surface)]'
+                                  // The katex rule is a phone fix. Display maths
+                                  // does not wrap, and the content box clips
+                                  // rather than scrolls - so on a narrow screen
+                                  // a long equation simply lost its right-hand
+                                  // side. Scrolling the equation itself keeps
+                                  // that inside the message instead of dragging
+                                  // the conversation sideways.
+                                  'text-[0.9375rem] leading-relaxed [&_.katex-display]:overflow-x-auto [&_.katex-display]:py-1 [&_h2]:mt-6 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-5 [&_h3]:font-semibold [&_h3]:text-base [&_li]:leading-relaxed [&_p]:leading-relaxed'
+                                : // mr-7 reserves the tail's own width. The
+                                  // tail is drawn by pseudo-elements that reach
+                                  // 1.6rem past the bubble's right edge, and the
+                                  // bubble is pinned to the right of the column
+                                  // - so without this it hangs over the scroll
+                                  // container's edge and the whole conversation
+                                  // slides sideways on a phone.
+                                  'bubble-student mr-7 overflow-visible px-4 py-2.5 text-[0.9375rem] leading-relaxed group-[.is-user]:rounded-[1.35rem] group-[.is-user]:rounded-br-[0.55rem] group-[.is-user]:bg-[var(--bubble-surface)]'
                             }
                           >
                             <MessageResponse plugins={streamdownPlugins}>
