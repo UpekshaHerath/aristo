@@ -56,7 +56,7 @@ export async function POST(request: Request) {
       title = body.title.trim().slice(0, 200)
     }
   } catch {
-    // No body is fine — the default title stands.
+    // No body is fine - the default title stands.
   }
 
   const thread = await memory.saveThread({

@@ -16,7 +16,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-// A serif for the wordmark and empty state — the register of a textbook rather
+// A serif for the wordmark and empty state - the register of a textbook rather
 // than a SaaS dashboard. Used sparingly; the UI itself stays sans.
 const sourceSerif = Source_Serif_4({
   variable: "--font-display",
@@ -30,7 +30,7 @@ export const metadata: Metadata = {
     template: "%s · Aristo",
   },
   description:
-    "A study assistant for Cambridge candidates — syllabus-grounded answers, exam technique, and past-paper practice.",
+    "A study assistant for Cambridge candidates - syllabus-grounded answers, exam technique, and past-paper practice.",
   applicationName: "Aristo",
   appleWebApp: {
     capable: true,

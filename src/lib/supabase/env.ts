@@ -2,7 +2,7 @@
  * Reads the Supabase config, failing with a message that names what's missing.
  *
  * Without this the raw client error surfaces from the proxy, which takes down
- * every route — including /login — behind a message that doesn't say which
+ * every route - including /login - behind a message that doesn't say which
  * variable is absent or which file to put it in.
  */
 export function supabaseEnv() {

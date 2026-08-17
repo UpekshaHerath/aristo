@@ -30,7 +30,7 @@ const storage = connectionString
   : new LibSQLStore({
       id: 'mastra-storage',
       // A relative path resolves against each process's CWD, and `next dev` and
-      // `mastra dev` (Studio) don't share one — that silently produces two
+      // `mastra dev` (Studio) don't share one - that silently produces two
       // separate databases. Set MASTRA_DB_URL to an absolute file: URL so both
       // read the same file. Setting DATABASE_URL removes the problem entirely.
       url: process.env.MASTRA_DB_URL ?? 'file:./mastra.db',

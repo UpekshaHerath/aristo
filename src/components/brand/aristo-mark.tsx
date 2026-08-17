@@ -40,7 +40,7 @@ export function AristoMark({
       >
         {/* Apex down to each leg. */}
         <path d="M9 24 16 8l7 16" />
-        {/* Crossbar, overshooting right — the page rule. */}
+        {/* Crossbar, overshooting right - the page rule. */}
         <path d="M11.6 18.4h9.6" />
       </g>
     </svg>

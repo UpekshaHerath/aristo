@@ -53,7 +53,9 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ThemeToggle } from '@/components/theme-toggle'
+import { Spinner } from '@/components/ui/spinner'
 import { normalizeLatexDelimiters } from '@/lib/latex'
+import { deriveThreadTitle } from '@/lib/thread-title'
 import { AristoWordmark } from '@/components/brand/aristo-mark'
 import { AristoMascot } from '@/components/brand/aristo-mascot'
 import { cjk } from '@streamdown/cjk'
@@ -68,7 +70,7 @@ import { ThreadList, type ThreadSummary } from './thread-list'
  * of false, so `$V$` reaches the student as literal dollar signs while `$$...$$`
  * renders. Nearly all of an exam answer's maths is inline, so that default makes
  * the majority of it unreadable. Passing `plugins` here overrides the component's
- * — it spreads props after its own `plugins`, so no vendored file needs editing.
+ * - it spreads props after its own `plugins`, so no vendored file needs editing.
  */
 const streamdownPlugins = {
   cjk,
@@ -152,7 +154,7 @@ function ErrorNotice({
       <AristoMascot mood="concerned" className="-mt-0.5 size-7 shrink-0" />
       <p className="min-w-0 flex-1 text-foreground/90">
         {rateLimited
-          ? 'Aristo is busy right now — the free model tier is rate limited. Wait a few seconds and try again.'
+          ? 'Aristo is busy right now - the free model tier is rate limited. Wait a few seconds and try again.'
           : "That answer didn't come through."}
       </p>
       <Button size="sm" variant="outline" className="h-7" onClick={onRetry}>
@@ -180,6 +182,17 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const [renaming, setRenaming] = useState<ThreadSummary | null>(null)
   const [renameValue, setRenameValue] = useState('')
   const [deleting, setDeleting] = useState<ThreadSummary | null>(null)
+  /*
+   * Which thread the messages currently in state belong to.
+   *
+   * Loading is derived from this rather than held as its own flag: setting a
+   * flag synchronously at the top of the load effect triggers a cascading
+   * render, and React's lint rule rightly rejects it. Comparing the loaded id
+   * against the selected one is true from the very first render after a
+   * selection, with no extra state transition.
+   */
+  const [loadedThreadId, setLoadedThreadId] = useState<string | null>(null)
+  const loadingHistory = activeThreadId !== null && loadedThreadId !== activeThreadId
 
   const {
     messages,
@@ -198,17 +211,21 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
    * Current messages and threads, mirrored into refs.
    *
    * createThread needs to read both, but taking them as dependencies would
-   * change its identity on every streamed chunk — and the bootstrap effect below
+   * change its identity on every streamed chunk - and the bootstrap effect below
    * keys off that identity. Refs keep the callback stable.
    */
   const messagesRef = useRef(messages)
   const threadsRef = useRef(threads)
+  const loadedThreadIdRef = useRef(loadedThreadId)
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
   useEffect(() => {
     threadsRef.current = threads
   }, [threads])
+  useEffect(() => {
+    loadedThreadIdRef.current = loadedThreadId
+  }, [loadedThreadId])
 
   const refreshThreads = useCallback(async () => {
     const res = await fetch('/api/threads')
@@ -219,10 +236,15 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   }, [])
 
   const createThread = useCallback(async () => {
-    // Already sitting on an empty thread — reuse it. Otherwise every press of
+    // Already sitting on an empty thread - reuse it. Otherwise every press of
     // "New" adds another untouched "New chat" to the sidebar, which is how the
     // list fills with identical empty rows.
-    if (activeThreadId && messagesRef.current.length === 0) {
+    //
+    // The loading check matters: history is cleared before the fetch resolves,
+    // so without it a thread that is merely still loading looks empty and "New"
+    // would silently do nothing on a conversation that actually has messages.
+    const settled = loadedThreadIdRef.current === activeThreadId
+    if (activeThreadId && settled && messagesRef.current.length === 0) {
       setSheetOpen(false)
       return threadsRef.current.find((t) => t.id === activeThreadId) ?? null
     }
@@ -233,6 +255,10 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     setThreads((current) => [thread, ...current])
     setActiveThreadId(thread.id)
     setMessages([])
+    // A thread we just created is known to be empty, so mark it loaded here.
+    // Without this the load effect would fetch its (empty) history and the
+    // student would watch a spinner on a chat that cannot have any messages.
+    setLoadedThreadId(thread.id)
     setSheetOpen(false)
     return thread as ThreadSummary
   }, [setMessages, activeThreadId])
@@ -253,31 +279,74 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     bootstrap()
   }, [refreshThreads, createThread])
 
+  /*
+   * Loads the selected thread's history.
+   *
+   * `loadingHistory` exists to stop a specific flash. Opening a thread left the
+   * old `messages` in place until the fetch resolved, and `messages.length === 0`
+   * is what renders the empty state - so selecting a thread showed the starter
+   * questions for the second or two the request took, then replaced them with
+   * the real conversation. Switching between two threads showed the previous
+   * thread's messages for that same beat.
+   *
+   * Clearing immediately and gating on this flag means the pane goes from the
+   * old thread straight to a quiet placeholder to the right conversation.
+   */
   useEffect(() => {
     if (!activeThreadId) return
+    if (loadedThreadId === activeThreadId) return
     let cancelled = false
 
     const load = async () => {
-      const res = await fetch(
-        `/api/chat?threadId=${encodeURIComponent(activeThreadId)}`
-      )
-      if (!res.ok || cancelled) return
-      const history = await res.json()
-      if (!cancelled) setMessages(history)
+      let history: unknown[] = []
+      try {
+        const res = await fetch(
+          `/api/chat?threadId=${encodeURIComponent(activeThreadId)}`
+        )
+        if (res.ok) history = await res.json()
+      } catch {
+        // A failed load shows an empty thread rather than the previous one's
+        // messages. Leaving stale content under a new title is worse.
+      }
+
+      if (cancelled) return
+      // Both updates happen after an await, so neither runs synchronously
+      // inside the effect body.
+      setMessages(history as typeof messages)
+      setLoadedThreadId(activeThreadId)
     }
 
     load()
     return () => {
       cancelled = true
     }
-  }, [activeThreadId, setMessages])
+  }, [activeThreadId, loadedThreadId, setMessages])
 
   const submitText = async (text: string) => {
     const trimmed = text.trim()
     if (!trimmed || !activeThreadId) return
     setInput('')
+
+    // Name the thread from its opening question, before the answer starts
+    // arriving. Done here rather than after the response so the sidebar stops
+    // showing a column of identical "New chat" rows the instant you ask.
+    const isFirstMessage = messagesRef.current.length === 0
+    if (isFirstMessage) {
+      const title = deriveThreadTitle(trimmed)
+      // Optimistic: the row is renamed immediately and the PATCH catches up.
+      setThreads((current) =>
+        current.map((thread) =>
+          thread.id === activeThreadId ? { ...thread, title } : thread
+        )
+      )
+      void fetch(`/api/threads/${activeThreadId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      })
+    }
+
     await sendMessage({ text: trimmed }, { body: { threadId: activeThreadId } })
-    // Titles are generated from the opening exchange, so pull the new one in.
     refreshThreads()
   }
 
@@ -408,7 +477,17 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
           </Button>
         </header>
 
-        {messages.length === 0 ? (
+        {loadingHistory ? (
+          // Quiet placeholder, never the starter questions: showing those while
+          // a real conversation loads tells the student the thread is empty and
+          // then contradicts itself a second later.
+          <div className="flex min-h-0 flex-1 items-center justify-center">
+            <span className="sr-only" role="status">
+              Loading conversation
+            </span>
+            <Spinner aria-hidden className="size-5 text-muted-foreground" />
+          </div>
+        ) : messages.length === 0 ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EmptyState onPick={submitText} disabled={busy || !activeThreadId} />
           </div>
@@ -442,7 +521,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                               {normalizeLatexDelimiters(part.text)}
                             </MessageResponse>
                           </MessageContent>
-                          {/* Only once the answer is settled — a copy button on
+                          {/* Only once the answer is settled - a copy button on
                               half-streamed text copies a truncated answer. */}
                           {isAssistant && !busy && (
                             <MessageActions className="opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
@@ -511,7 +590,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
             {/* No PromptInputBody wrapper. It renders `display: contents`, which
                 removes an element from layout but NOT from the DOM tree, so the
                 InputGroup's `has-[>textarea]:h-auto` rule stops matching and the
-                group keeps its 32px default height — clipping the 64px textarea
+                group keeps its 32px default height - clipping the 64px textarea
                 top and bottom. The textarea has to be a direct child. */}
             <PromptInput onSubmit={() => submitText(input)}>
               <PromptInputTextarea

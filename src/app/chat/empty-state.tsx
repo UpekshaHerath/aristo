@@ -46,7 +46,7 @@ export function EmptyState({
           What are you revising?
         </h1>
         <p className="max-w-md text-balance text-muted-foreground text-sm">
-          Ask about any Cambridge subject — syllabus content, exam technique, or a
+          Ask about any Cambridge subject - syllabus content, exam technique, or a
           question you&apos;re stuck on.
         </p>
       </div>
@@ -57,7 +57,7 @@ export function EmptyState({
             key={starter.label}
             className="animate-rise"
             // Staggered so the grid resolves in sequence rather than snapping in
-            // as one block. Small steps — 60ms reads as one gesture, not a queue.
+            // as one block. Small steps - 60ms reads as one gesture, not a queue.
             style={{ animationDelay: `${80 + i * 60}ms` }}
           >
             <button

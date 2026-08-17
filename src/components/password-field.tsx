@@ -32,7 +32,7 @@ export function PasswordField({
   placeholder?: string
   minLength?: number
   required?: boolean
-  /** Shown under the field — requirements, not errors. */
+  /** Shown under the field - requirements, not errors. */
   hint?: string
   className?: string
 }) {

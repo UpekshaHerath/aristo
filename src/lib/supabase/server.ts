@@ -4,7 +4,7 @@ import { supabaseEnv } from './env'
 
 /**
  * Supabase client for Server Components, Route Handlers and Server Actions.
- * Must be created per request — never hoist this into a module-level singleton,
+ * Must be created per request - never hoist this into a module-level singleton,
  * because the cookie store belongs to one request only.
  */
 export async function createClient() {

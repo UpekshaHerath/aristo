@@ -9,7 +9,7 @@ export async function GET(request: NextRequest) {
   const code = searchParams.get('code')
   const next = searchParams.get('next') ?? '/chat'
 
-  // Only allow same-origin relative paths — an attacker-supplied absolute URL
+  // Only allow same-origin relative paths - an attacker-supplied absolute URL
   // here would turn the callback into an open redirect.
   const safeNext = next.startsWith('/') && !next.startsWith('//') ? next : '/chat'
 

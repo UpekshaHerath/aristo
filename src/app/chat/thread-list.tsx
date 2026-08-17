@@ -76,7 +76,7 @@ export function ThreadList({
                     onClick={() => onSelect(thread.id)}
                     aria-current={active ? 'page' : undefined}
                     className={cn(
-                      // Generous target height — this is a one-thumb list.
+                      // Generous target height - this is a one-thumb list.
                       'flex min-h-11 w-full items-center rounded-lg py-2 pr-10 pl-3 text-left text-sm transition-colors',
                       'focus-visible:outline-2 focus-visible:outline-ring focus-visible:outline-offset-1',
                       // A colour shift alone is easy to miss against the sidebar
@@ -101,7 +101,7 @@ export function ThreadList({
                             '-translate-y-1/2 absolute top-1/2 right-1 size-8 transition-opacity',
                             // Hidden until wanted, so the list reads as titles
                             // rather than a column of dots. Touch devices have
-                            // no hover, so it stays visible there — and it must
+                            // no hover, so it stays visible there - and it must
                             // never hide while its own menu is open.
                             'opacity-0 group-hover/item:opacity-100 focus-visible:opacity-100 data-[popup-open]:opacity-100',
                             '[@media(hover:none)]:opacity-100'

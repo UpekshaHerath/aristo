@@ -14,7 +14,7 @@ function isPublicPath(pathname: string) {
 /**
  * Refreshes the Supabase session cookie and gates protected routes.
  *
- * The response object must be the one Supabase wrote cookies onto — building a
+ * The response object must be the one Supabase wrote cookies onto - building a
  * fresh NextResponse here would silently drop the refreshed session and log the
  * user out on the next navigation.
  */

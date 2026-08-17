@@ -28,7 +28,7 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
   const dirty = !sameCodes(selected, saved)
 
   /*
-   * Selecting subjects is easy to do and easy to walk away from — the picker is
+   * Selecting subjects is easy to do and easy to walk away from - the picker is
    * one tap from the chat. Without this the choice is silently discarded.
    * Covers tab close and reload; in-app navigation is handled by the notice
    * beside the Save button, since Next's client router doesn't fire this.
@@ -86,8 +86,8 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
             kind: 'ok',
             message:
               selected.size === 0
-                ? 'Saved — searching all syllabuses.'
-                : `Saved — ${selected.size} ${selected.size === 1 ? 'subject' : 'subjects'}.`,
+                ? 'Saved - searching all syllabuses.'
+                : `Saved - ${selected.size} ${selected.size === 1 ? 'subject' : 'subjects'}.`,
           }
     )
   }
@@ -142,7 +142,7 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
       ))}
 
       <div className="sticky bottom-0 flex items-center gap-3 border-t bg-background/85 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
-        {/* Nothing to save when nothing changed — an always-live Save button
+        {/* Nothing to save when nothing changed - an always-live Save button
             gives no signal about whether the choice has been committed. */}
         <Button onClick={save} disabled={saving || !dirty}>
           {saving && <Spinner className="size-4" />}

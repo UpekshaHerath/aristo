@@ -3,7 +3,7 @@ import type { Qualification } from '@/mastra/rag/config'
 /**
  * Selectable Cambridge syllabuses.
  *
- * Codes are the real Cambridge International subject codes — they double as the
+ * Codes are the real Cambridge International subject codes - they double as the
  * retrieval filter value, so they must match the `syllabusCode` in ingested
  * content exactly.
  */

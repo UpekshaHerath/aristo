@@ -1,7 +1,7 @@
 /**
  * Rewrites LaTeX delimiters into the dollar form the markdown renderer parses.
  *
- * Models emit `\(inline\)` and `\[display\]` — that is what OpenAI-lineage
+ * Models emit `\(inline\)` and `\[display\]` - that is what OpenAI-lineage
  * models are trained to produce, and asking for dollars in the system prompt
  * does not change it (gpt-oss-120b ignored an explicit instruction in testing).
  * @streamdown/math only recognises `$...$` and `$$...$$`, so untranslated

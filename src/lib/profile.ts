@@ -12,7 +12,7 @@ export type StudentProfile = {
  * Loads the signed-in student's profile.
  *
  * Read through the Supabase client with the user's JWT, so RLS is what scopes
- * the row — not a WHERE clause we could forget to write.
+ * the row - not a WHERE clause we could forget to write.
  */
 export async function getProfile(user: User): Promise<StudentProfile> {
   const supabase = await createClient()
@@ -34,7 +34,7 @@ export async function getProfile(user: User): Promise<StudentProfile> {
 /**
  * Builds the metadata filter applied to every syllabus retrieval.
  *
- * Returns null when the student has no syllabuses selected — an unfiltered
+ * Returns null when the student has no syllabuses selected - an unfiltered
  * search is correct then, because restricting to an empty set would silently
  * return nothing and look like an empty knowledge base.
  */

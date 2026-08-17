@@ -38,7 +38,7 @@ import {
 
 type FrontMatter = Record<string, string>
 
-/** Minimal front-matter parser — avoids a dependency for a fixed, simple shape. */
+/** Minimal front-matter parser - avoids a dependency for a fixed, simple shape. */
 function splitFrontMatter(raw: string): { meta: FrontMatter; body: string } {
   const match = raw.match(/^---\r?\n([\s\S]*?)\r?\n---\r?\n?/)
   if (!match) return { meta: {}, body: raw }
@@ -126,7 +126,7 @@ async function main() {
   }
 
   // Dry run validates front matter and chunking without a database or any
-  // embedding spend — worth running over new content before the real ingest.
+  // embedding spend - worth running over new content before the real ingest.
   if (dryRun) {
     const files = await collectFiles(target)
     let chunkTotal = 0
@@ -151,7 +151,7 @@ async function main() {
   const connectionString = process.env.DATABASE_URL
   if (!connectionString) {
     console.error(
-      'DATABASE_URL is not set. Ingest writes to Supabase Postgres — add it to .env first.'
+      'DATABASE_URL is not set. Ingest writes to Supabase Postgres - add it to .env first.'
     )
     process.exit(1)
   }
@@ -183,7 +183,7 @@ async function main() {
     const metadata = buildMetadata(meta, file)
 
     if (!body.trim()) {
-      console.warn(`  skipped ${basename(file)} — no content below front matter`)
+      console.warn(`  skipped ${basename(file)} - no content below front matter`)
       continue
     }
 
@@ -195,7 +195,7 @@ async function main() {
     })
 
     if (chunks.length === 0) {
-      console.warn(`  skipped ${basename(file)} — chunked to nothing`)
+      console.warn(`  skipped ${basename(file)} - chunked to nothing`)
       continue
     }
 

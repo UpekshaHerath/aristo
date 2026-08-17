@@ -49,7 +49,7 @@ export async function POST(req: Request) {
   }
 
   // Scope retrieval to the syllabuses this student is enrolled in. Set here,
-  // server-side, rather than via enableFilter — createVectorQueryTool resolves
+  // server-side, rather than via enableFilter - createVectorQueryTool resolves
   // `requestContext.get('filter')` ahead of any filter the model supplies, so
   // the model cannot widen its own search scope by asking.
   const requestContext = new RequestContext()

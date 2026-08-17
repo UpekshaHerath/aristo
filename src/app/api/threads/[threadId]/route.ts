@@ -11,7 +11,7 @@ type Params = { params: Promise<{ threadId: string }> }
 /**
  * Resolves a thread only if the signed-in student owns it.
  *
- * Returns 404 rather than 403 on a thread owned by someone else — a 403 would
+ * Returns 404 rather than 403 on a thread owned by someone else - a 403 would
  * confirm the id exists, which is a small enumeration leak.
  */
 async function resolveOwnedThread(threadId: string) {
@@ -28,7 +28,7 @@ async function resolveOwnedThread(threadId: string) {
   const thread = await memory.getThreadById({ threadId })
 
   // getThreadById is unscoped on the base memory type, so the ownership test is
-  // this comparison — not the lookup.
+  // this comparison - not the lookup.
   if (!thread || thread.resourceId !== resourceIdFor(user)) {
     return { error: NextResponse.json({ error: 'Thread not found' }, { status: 404 }) }
   }

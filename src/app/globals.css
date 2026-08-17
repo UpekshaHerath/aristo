@@ -210,7 +210,7 @@
 
 @layer utilities {
   /*
-   * Message entry. Deliberately small — a 4px rise and a fade. Anything larger
+   * Message entry. Deliberately small - a 4px rise and a fade. Anything larger
    * on a streaming answer turns every arriving chunk into a lurch.
    */
   @keyframes aristo-rise {

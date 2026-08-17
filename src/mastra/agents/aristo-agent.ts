@@ -13,7 +13,7 @@ export const aristoAgent = new Agent({
 
 ## Grounding
 
-Always call searchSyllabus before answering a subject question. The retrieved passages are already scoped to the syllabuses this student is taking — you do not need to filter them, and you cannot widen that scope.
+Always call searchSyllabus before answering a subject question. The retrieved passages are already scoped to the syllabuses this student is taking - you do not need to filter them, and you cannot widen that scope.
 
 - Base your answer on the retrieved passages. Where they cover the question, follow them rather than your own recall.
 - If retrieval returns nothing useful, say so plainly: tell the student the topic isn't in your syllabus material yet, then answer from general knowledge and clearly mark that part as not syllabus-verified.
@@ -39,25 +39,38 @@ Your goal is a student who can answer the next question alone, not one who has b
 
 Direct, warm and concise. These are teenagers, often revising under pressure and often on a phone. Short paragraphs. No filler, no praise-padding.
 
+Use only the plain ASCII hyphen. Never emit the long dash characters U+2014 or U+2013. Where you would reach for one, either use a hyphen with spaces around it or split the sentence in two. For ranges, write "pages 10 to 12" rather than joining the numbers with a dash.
+
 ## Mathematical notation
 
 Put every symbol, formula, unit and numerical answer in LaTeX, and keep units
-inside the maths via \`\\text{}\` — $9.81\\ \\text{m/s}^2$, not $9.81$ m/s^2.
+inside the maths via \`\\text{}\` - $9.81\\ \\text{m/s}^2$, not $9.81$ m/s^2.
 
 Whichever delimiters you use are normalised before rendering
 (see src/lib/latex.ts), so don't worry about the dollar-sign convention.`,
   // Groq is fast and free for text. Image input arrives in phase 04, which
-  // needs a vision model — Groq has none, so that turn will route to Gemini.
+  // needs a vision model - Groq has none, so that turn will route to Gemini.
   //
-  // NOT llama-3.3-70b-versatile. It emits a malformed tool-call tag on Groq —
-  // `<function=searchSyllabus{...}` with no closing `>` after the name — which
+  // NOT llama-3.3-70b-versatile. It emits a malformed tool-call tag on Groq -
+  // `<function=searchSyllabus{...}` with no closing `>` after the name - which
   // Groq rejects with `tool_use_failed`. Measured 4 failures in 5 attempts, so
   // grounding is effectively dead on that model. gpt-oss-120b uses structured
   // tool calling and failed none. Its free-tier rate limit is the tighter
   // constraint; openai/gpt-oss-20b is the fallback if 429s become a problem.
   model: 'groq/openai/gpt-oss-120b',
   tools: syllabusQueryTool ? { searchSyllabus: syllabusQueryTool } : {},
-  // generateTitle names each thread from its opening exchange, so the thread
-  // list reads as conversations rather than a column of "New chat".
-  memory: new Memory({ options: { generateTitle: true } }),
+  // Deliberately off, despite naming threads being exactly what we want.
+  //
+  // Mastra only generates a title when the thread has none:
+  //   if (shouldGenerate && !thread.title)
+  // POST /api/threads has to persist a thread before the first message exists,
+  // and a thread row with no title shows as a blank row in the sidebar, so it
+  // gets the "New chat" placeholder. That placeholder is truthy, so this branch
+  // never ran and every thread kept the placeholder forever.
+  //
+  // Titles are now derived from the student's first question on the client
+  // (see src/lib/thread-title.ts). That is instant rather than arriving a
+  // second later, costs no extra model call, and cannot be lost to a 429 -
+  // which matters on a free tier we already hit limits on.
+  memory: new Memory({ options: { generateTitle: false } }),
 })

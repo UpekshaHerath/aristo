@@ -15,7 +15,7 @@ const INK = 'oklch(0.472 0.088 62)'
 /**
  * Aristo, the character.
  *
- * An original scholar silhouette — a broad brow and a squared beard — not a
+ * An original scholar silhouette - a broad brow and a squared beard - not a
  * caricature of any real person. That is a deliberate constraint: a recognisable
  * likeness of a historical figure carries publicity and trademark exposure that
  * a student product should not take on, and a physicist in particular would
@@ -25,7 +25,7 @@ const INK = 'oklch(0.472 0.088 62)'
  * that change between moods. Everything else is fixed, so the character stays
  * recognisably one person across states.
  *
- * Shown only at low-stakes moments — the empty state, while thinking, and on an
+ * Shown only at low-stakes moments - the empty state, while thinking, and on an
  * error. It is deliberately absent while a student is reading an answer, where
  * a moving figure would compete with the content for attention.
  */
@@ -39,7 +39,7 @@ export function AristoMascot({
   const reduceMotion = useReducedMotion()
   const [blinking, setBlinking] = useState(false)
 
-  // Irregular intervals — a metronomic blink reads as a machine, not a face.
+  // Irregular intervals - a metronomic blink reads as a machine, not a face.
   useEffect(() => {
     if (reduceMotion) return
     let timer: ReturnType<typeof setTimeout>
@@ -130,7 +130,7 @@ export function AristoMascot({
             <circle
               key={cx}
               cx={cx}
-              // Looks up and away while thinking — the universal "working on it".
+              // Looks up and away while thinking - the universal "working on it".
               cy={mood === 'thinking' ? 42.5 : 44}
               r="2.5"
               stroke="none"

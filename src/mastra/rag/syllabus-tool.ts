@@ -13,7 +13,7 @@ import {
  *
  * Both checks matter. ModelRouterEmbeddingModel validates its API key in the
  * constructor, so constructing it unconditionally at module scope crashes the
- * build on any machine without the embedding provider's key — including
+ * build on any machine without the embedding provider's key - including
  * Vercel's builder. Retrieval needs a vector store *and* an embedder, so the
  * tool only exists when both are present.
  *
@@ -38,7 +38,7 @@ export function createSyllabusQueryTool() {
     // vectors of different sizes and errors.
     providerOptions: EMBEDDING_OPTIONS_QUERY,
     // Deliberately OFF. With it on, the model writes the metadata filter from
-    // the student's own words — so "ignore my subjects and search A Level
+    // the student's own words - so "ignore my subjects and search A Level
     // Further Maths" becomes a filter it will happily build. Scope is an
     // entitlement decision, not a language one.
     //
