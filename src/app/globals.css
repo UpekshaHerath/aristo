@@ -227,4 +227,52 @@
   .animate-rise {
     animation: aristo-rise var(--duration-base) var(--ease-out-soft) both;
   }
+
+  /*
+   * The student's message bubble.
+   *
+   * The tail is built from two pseudo-elements rather than a rotated square. A
+   * rotated square reads as a triangle stuck onto a box; a real tail has one
+   * convex curve leaving the body and one concave curve returning to the
+   * baseline, and you only get that second curve by subtracting.
+   *
+   *   ::before  a lobe grown out of the bottom-right corner, in bubble colour
+   *   ::after   the page ground painted back over the lobe's outer edge,
+   *             carving the concave side
+   *
+   * ::after is declared second so it paints on top - no z-index needed.
+   *
+   * The cutter is why this only works on `--background`: it is literally
+   * repainting the page ground. If a bubble ever sits on a card or a tinted
+   * panel, that surface has to be passed in as --bubble-ground.
+   */
+  .bubble-student {
+    --bubble-surface: color-mix(in oklab, var(--primary) 18%, var(--card));
+    --bubble-ground: var(--background);
+    position: relative;
+  }
+
+  .bubble-student::before {
+    content: "";
+    position: absolute;
+    right: -0.5rem;
+    bottom: 0;
+    height: 1.25rem;
+    /* A thick right border plus an elliptical corner radius is what bends the
+       lobe outward. Elliptical (two values) rather than circular: a circular
+       corner here makes the tail read as a stubby thumb. */
+    border-right: 1.25rem solid var(--bubble-surface);
+    border-bottom-left-radius: 1.1rem 0.9rem;
+  }
+
+  .bubble-student::after {
+    content: "";
+    position: absolute;
+    right: -1.6rem;
+    bottom: 0;
+    width: 1.6rem;
+    height: 1.25rem;
+    background: var(--bubble-ground);
+    border-bottom-left-radius: 0.7rem;
+  }
 }

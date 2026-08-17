@@ -514,7 +514,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                                 ? // Long-form explanation, so give it reading
                                   // typography rather than chat-bubble sizing.
                                   'text-[0.9375rem] leading-relaxed [&_h2]:mt-6 [&_h2]:font-semibold [&_h2]:text-lg [&_h3]:mt-5 [&_h3]:font-semibold [&_h3]:text-base [&_li]:leading-relaxed [&_p]:leading-relaxed'
-                                : undefined
+                                : 'bubble-student overflow-visible px-4 py-2.5 text-[0.9375rem] leading-relaxed group-[.is-user]:rounded-[1.35rem] group-[.is-user]:rounded-br-[0.55rem] group-[.is-user]:bg-[var(--bubble-surface)]'
                             }
                           >
                             <MessageResponse plugins={streamdownPlugins}>
