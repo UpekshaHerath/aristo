@@ -19,5 +19,7 @@ Your primary function is to help users get weather details for specific location
 Use the weatherTool to fetch current weather data.`,
   model: 'groq/llama-3.3-70b-versatile',
   tools: { weatherTool },
-  memory: new Memory(),
+  // generateTitle names each thread from its opening exchange, so the thread
+  // list reads as conversations rather than a column of "New chat".
+  memory: new Memory({ options: { generateTitle: true } }),
 });
