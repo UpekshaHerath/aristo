@@ -1,6 +1,8 @@
 import { Agent } from '@mastra/core/agent'
+import { TokenLimiterProcessor } from '@mastra/core/processors'
 import { Memory } from '@mastra/memory'
 import { createSyllabusQueryTool } from '../rag/syllabus-tool'
+import { MAX_INPUT_TOKENS } from '../rag/config'
 
 // Null when DATABASE_URL or the embedding provider key is absent; the agent
 // then runs without a knowledge base rather than failing to construct.
@@ -73,4 +75,25 @@ Whichever delimiters you use are normalised before rendering
   // second later, costs no extra model call, and cannot be lost to a 429 -
   // which matters on a free tier we already hit limits on.
   memory: new Memory({ options: { generateTitle: false } }),
+  /*
+   * The backstop for Groq's 8000 tokens-per-minute free tier.
+   *
+   * Trimming retrieval bounds one tool result, but nothing bounds a thread that
+   * simply gets long: memory replays previous turns, and the agent loop makes a
+   * second call carrying the tool result on top of all of them. Once the total
+   * crosses the allowance Groq rejects the request with a 413 - not a 429, so
+   * no retry helps and the conversation is dead until the thread is abandoned.
+   *
+   * TokenLimiterProcessor runs on the initial input and on every subsequent
+   * step, dropping the oldest messages first and always keeping the system
+   * prompt. `contiguous` keeps an unbroken suffix of the conversation rather
+   * than the largest set of messages that happens to fit - a history with holes
+   * in it reads as the assistant losing the plot mid-thread.
+   */
+  inputProcessors: [
+    new TokenLimiterProcessor({
+      limit: MAX_INPUT_TOKENS,
+      trimMode: 'contiguous',
+    }),
+  ],
 })

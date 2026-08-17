@@ -143,9 +143,29 @@ function ErrorNotice({
   onRetry: () => void
   onDismiss: () => void
 }) {
+  /*
+   * The transport throws with the raw response body as the message, so a route
+   * that answered `{"error":"..."}` carries its reason here. Unwrapping it is
+   * what turns "That answer didn't come through" - which names no cause and
+   * suggests no action - into something a student can act on.
+   */
+  let detail = error.message
+  try {
+    const parsed = JSON.parse(detail)
+    if (typeof parsed?.error === 'string') detail = parsed.error
+  } catch {
+    // Not JSON - a model or network error. The message stands as-is.
+  }
+
   // Rate limits are the common case on a free model tier and are worth naming,
   // since the fix is simply to wait rather than to rephrase the question.
-  const rateLimited = /rate.?limit|429|quota/i.test(error.message)
+  // Groq reports the per-minute token ceiling as "request too large" with a 413
+  // rather than a 429, so that wording has to be matched here too or it falls
+  // through to the generic copy and reads like a bug in the app.
+  const rateLimited =
+    /rate.?limit|429|413|quota|too large|tokens per minute|tpm/i.test(detail)
+  // A session that expired mid-visit needs a sign-in, not a retry.
+  const signedOut = /not authenticated|401/i.test(detail)
 
   return (
     <div
@@ -153,15 +173,32 @@ function ErrorNotice({
       className="mb-2 flex animate-rise items-start gap-2.5 rounded-lg border border-destructive/30 bg-destructive/8 px-3 py-2.5 text-sm"
     >
       <AristoMascot mood="concerned" className="-mt-0.5 size-7 shrink-0" />
-      <p className="min-w-0 flex-1 text-foreground/90">
-        {rateLimited
-          ? 'Aristo is busy right now - the free model tier is rate limited. Wait a few seconds and try again.'
-          : "That answer didn't come through."}
-      </p>
-      <Button size="sm" variant="outline" className="h-7" onClick={onRetry}>
-        <RotateCcw className="size-3.5" />
-        Retry
-      </Button>
+      <div className="min-w-0 flex-1 text-foreground/90">
+        <p>
+          {rateLimited
+            ? 'Aristo is busy right now - the free model tier is rate limited. Wait a few seconds and try again.'
+            : signedOut
+              ? 'Your session expired. Sign in again to keep going.'
+              : "That answer didn't come through."}
+        </p>
+        {!rateLimited && !signedOut && detail && (
+          // Shown, not swallowed: a retry that keeps failing for the same
+          // reason is unfixable when the reason is never named.
+          <p className="mt-0.5 text-muted-foreground text-xs break-words">
+            {detail}
+          </p>
+        )}
+      </div>
+      {signedOut ? (
+        <Button size="sm" variant="outline" className="h-7" render={<Link href="/login" />}>
+          Sign in
+        </Button>
+      ) : (
+        <Button size="sm" variant="outline" className="h-7" onClick={onRetry}>
+          <RotateCcw className="size-3.5" />
+          Retry
+        </Button>
+      )}
       <Button
         size="icon"
         variant="ghost"
@@ -622,8 +659,13 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
               <ErrorNotice
                 error={error}
                 onRetry={() => {
+                  if (!activeThreadId) return
                   clearError()
-                  regenerate()
+                  // The threadId has to be repeated here. `regenerate` does not
+                  // reuse the body from the send it is retrying, so without it
+                  // the route sees no threadId and answers 400 - which made
+                  // Retry fail every single time.
+                  regenerate({ body: { threadId: activeThreadId } })
                 }}
                 onDismiss={clearError}
               />

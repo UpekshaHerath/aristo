@@ -46,6 +46,20 @@ export function createSyllabusQueryTool() {
     // createVectorQueryTool resolves ahead of any model-supplied filter:
     //   const filter = requestContext?.get("filter") ?? inputData.filter
     enableFilter: false,
-    includeSources: true,
+    /*
+     * OFF, and this is a token-budget decision rather than a feature one.
+     *
+     * The tool returns `{ relevantContext, sources }`, and both carry the full
+     * chunk text - `sources` is the same passages again with their scores and
+     * ids attached. That whole object is fed back to the model, so leaving this
+     * on billed every retrieved passage twice. With 512-token chunks it was
+     * enough on its own to push a single turn past Groq's 8000 TPM free-tier
+     * ceiling, which fails as a 413 before the answer starts.
+     *
+     * Nothing reads `sources` - citations come from the model quoting the
+     * syllabus code in `relevantContext`. Turn it back on only alongside a UI
+     * that actually renders them.
+     */
+    includeSources: false,
   })
 }

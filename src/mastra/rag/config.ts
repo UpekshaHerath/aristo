@@ -50,6 +50,33 @@ export const EMBEDDING_OPTIONS_QUERY = embeddingOptions('RETRIEVAL_QUERY')
 
 export const VECTOR_STORE_NAME = 'syllabus'
 
+/**
+ * Passages returned per search.
+ *
+ * Deliberately below createVectorQueryTool's default of 10. Chunks are ingested
+ * at up to 512 tokens, so ten of them is roughly 5k tokens of context - more
+ * than half of Groq's 8000 tokens-per-minute free-tier allowance spent on a
+ * single tool result, which is what made the first question of a session fail
+ * with a 413.
+ */
+export const SYLLABUS_TOP_K = 3
+
+/**
+ * Ceiling on the input tokens of any one model call, enforced per step of the
+ * agent loop.
+ *
+ * A grounded turn costs two calls: one to decide on the search (~1.2k, nearly
+ * all of it the system prompt) and one carrying the retrieved passages (~3k).
+ * Both count against the same minute, so the pair plus the answer has to fit
+ * inside 8000.
+ *
+ * Set above that ~3k rather than at it on purpose. The limiter drops oldest
+ * first, and the newest message on the second call is the tool result - trim
+ * too aggressively and the passages the answer is supposed to be grounded in
+ * are exactly what gets discarded. This only bites on genuinely long threads.
+ */
+export const MAX_INPUT_TOKENS = 5000
+
 /** Cambridge qualification levels a chunk can belong to. */
 export const QUALIFICATIONS = ['IGCSE', 'O Level', 'AS Level', 'A Level'] as const
 export type Qualification = (typeof QUALIFICATIONS)[number]

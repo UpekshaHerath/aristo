@@ -7,6 +7,7 @@ import { NextResponse } from 'next/server'
 import { getUser, resourceIdFor } from '@/lib/auth'
 import { getProfile, retrievalFilterFor } from '@/lib/profile'
 import { AGENT_ID } from '@/lib/agent'
+import { SYLLABUS_TOP_K } from '@/mastra/rag/config'
 
 // Mastra needs Node APIs and a real pg socket, so this route can't run on Edge.
 export const runtime = 'nodejs'
@@ -59,24 +60,49 @@ export async function POST(req: Request) {
     requestContext.set('filter', filter)
   }
 
-  const stream = await handleChatStream({
-    mastra,
-    agentId: AGENT_ID,
-    // ai@7 uses the v6 UI message protocol; without this the v5 overload is
-    // selected and its chunk types don't match createUIMessageStreamResponse.
-    version: 'v6',
-    params: {
-      ...params,
-      requestContext,
-      memory: {
-        ...params.memory,
-        thread: threadId,
-        resource: resourceId,
-      },
-    },
-  })
+  /*
+   * How many passages retrieval may return, set here for the same reason the
+   * filter is: createVectorQueryTool resolves `requestContext.get('topK')`
+   * ahead of the model's own argument, so this is a ceiling the model cannot
+   * raise by asking.
+   *
+   * 3, not the tool's default of 10. Chunks are ingested at up to 512 tokens,
+   * so ten of them is ~5k tokens of context on a free tier that allows 8000
+   * tokens per minute in total - the request was rejected outright with a 413
+   * before the model saw it. Three passages still ground an answer.
+   */
+  requestContext.set('topK', SYLLABUS_TOP_K)
 
-  return createUIMessageStreamResponse({ stream })
+  /*
+   * A throw here - a model outage, a bad key, a provider rate limit - would
+   * otherwise escape as Next's HTML 500 page, and the client would surface a
+   * blob of markup as the reason the answer failed. Answering with the message
+   * as JSON is what lets the composer say what actually went wrong.
+   */
+  try {
+    const stream = await handleChatStream({
+      mastra,
+      agentId: AGENT_ID,
+      // ai@7 uses the v6 UI message protocol; without this the v5 overload is
+      // selected and its chunk types don't match createUIMessageStreamResponse.
+      version: 'v6',
+      params: {
+        ...params,
+        requestContext,
+        memory: {
+          ...params.memory,
+          thread: threadId,
+          resource: resourceId,
+        },
+      },
+    })
+
+    return createUIMessageStreamResponse({ stream })
+  } catch (cause) {
+    console.error('[api/chat] agent run failed', cause)
+    const message = cause instanceof Error ? cause.message : String(cause)
+    return NextResponse.json({ error: message }, { status: 502 })
+  }
 }
 
 /** Hydrates one thread's history for the client. */
