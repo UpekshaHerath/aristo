@@ -8,7 +8,11 @@ import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
 import { PasswordField } from '@/components/password-field'
-import { AristoMascot } from '@/components/brand/aristo-mascot'
+import {
+  AristoMascot,
+  type MascotGaze,
+  type MascotMood,
+} from '@/components/brand/aristo-mascot'
 
 type Mode = 'signin' | 'signup'
 
@@ -23,6 +27,38 @@ function LoginForm() {
   const [pending, setPending] = useState(false)
   const [error, setError] = useState<string | null>(searchParams.get('error'))
   const [notice, setNotice] = useState<string | null>(null)
+
+  /*
+   * What the character is doing while the form is filled in.
+   *
+   * He reads along with the email - eyes down on the field, tracking right as it
+   * grows - and puts his hands over his eyes the moment the password field takes
+   * focus. That is the whole point of the gesture: it tells a student on a shared
+   * or overlooked screen that this field is the secret one, in the half second
+   * before they start typing it. Tapping "show password" drops his hands enough
+   * to look over them, so the state on screen always matches what is readable.
+   */
+  const [emailFocused, setEmailFocused] = useState(false)
+  const [passwordFocused, setPasswordFocused] = useState(false)
+  const [passwordRevealed, setPasswordRevealed] = useState(false)
+
+  const mascotMood: MascotMood = pending
+    ? 'thinking'
+    : error
+      ? 'concerned'
+      : notice
+        ? 'pleased'
+        : 'idle'
+
+  /*
+   * Down at the field, and rightward as the address gets longer - the eyes end
+   * up roughly where the caret is. Capped at 24 characters: past that the text
+   * scrolls inside the input rather than growing, so following it further would
+   * point him off the end of a field that has stopped moving.
+   */
+  const gaze: MascotGaze | undefined = emailFocused
+    ? { x: -0.55 + Math.min(email.length / 24, 1) * 1.35, y: 0.75 }
+    : undefined
 
   const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault()
@@ -126,7 +162,17 @@ function LoginForm() {
 
       <div className="relative w-full max-w-sm space-y-6">
         <div className="flex animate-rise flex-col items-center gap-2.5 text-center">
-          <AristoMascot mood="pleased" className="size-16" />
+          <AristoMascot
+            mood={mascotMood}
+            gaze={gaze}
+            // Revealed counts as engaged even without focus: a password sitting
+            // visible on screen is still the moment the gesture is about.
+            covering={passwordFocused || passwordRevealed}
+            peeking={passwordRevealed}
+            // Bigger than elsewhere: here he is doing something the student is
+            // meant to notice, and eyes are two units wide.
+            className="size-20"
+          />
           <h1 className="font-display text-3xl tracking-tight">Aristo</h1>
           <p className="text-balance text-muted-foreground text-sm">
             Syllabus-grounded revision help for Cambridge candidates.
@@ -146,6 +192,8 @@ function LoginForm() {
               autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onFocus={() => setEmailFocused(true)}
+              onBlur={() => setEmailFocused(false)}
               placeholder="you@school.edu"
             />
           </div>
@@ -157,6 +205,8 @@ function LoginForm() {
             minLength={8}
             placeholder={mode === 'signup' ? 'At least 8 characters' : ''}
             hint={mode === 'signup' ? 'At least 8 characters.' : undefined}
+            onFocusChange={setPasswordFocused}
+            onRevealChange={setPasswordRevealed}
           />
 
           {mode === 'signin' && (

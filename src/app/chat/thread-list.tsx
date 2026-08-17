@@ -2,6 +2,7 @@
 
 import { MoreHorizontal, Pencil, Trash2 } from 'lucide-react'
 import { Button } from '@/components/ui/button'
+import { Skeleton } from '@/components/ui/skeleton'
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -30,19 +31,56 @@ function bucketFor(updatedAt: string): string {
   return 'Earlier'
 }
 
+/*
+ * The sidebar while the thread list is still in flight.
+ *
+ * Rows at the real height and heading widths, because the alternative - "Your
+ * chats will appear here." - is a claim about the account, and showing it to a
+ * student with forty threads for the length of a fetch is simply wrong.
+ */
+function ThreadListSkeleton() {
+  return (
+    <div role="status" aria-busy="true" className="flex flex-col gap-4">
+      <span className="sr-only">Loading chats</span>
+      {[
+        // Widths only, in row order. Uneven on purpose: equal bars read as a
+        // table, and the list they stand in for is titles of varying length.
+        ['4.5rem', ['72%', '88%', '61%']],
+        ['5.5rem', ['80%', '54%']],
+      ].map(([heading, rows], group) => (
+        <section key={group} aria-hidden className="flex flex-col gap-1">
+          <Skeleton className="mx-3 h-3 rounded-sm" style={{ width: heading as string }} />
+          <div className="flex flex-col gap-0.5">
+            {(rows as string[]).map((width, row) => (
+              <div key={row} className="flex min-h-11 items-center px-3">
+                <Skeleton className="h-4" style={{ width }} />
+              </div>
+            ))}
+          </div>
+        </section>
+      ))}
+    </div>
+  )
+}
+
 export function ThreadList({
   threads,
   activeThreadId,
+  loading = false,
   onSelect,
   onRename,
   onDelete,
 }: {
   threads: ThreadSummary[]
   activeThreadId: string | null
+  /** The first fetch has not landed yet - not "this account has no chats". */
+  loading?: boolean
   onSelect: (id: string) => void
   onRename: (thread: ThreadSummary) => void
   onDelete: (thread: ThreadSummary) => void
 }) {
+  if (loading && threads.length === 0) return <ThreadListSkeleton />
+
   if (threads.length === 0) {
     return (
       <p className="px-3 py-2 text-muted-foreground text-sm">

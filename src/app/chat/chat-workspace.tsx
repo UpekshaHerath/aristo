@@ -53,7 +53,6 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { ThemeToggle } from '@/components/theme-toggle'
-import { Spinner } from '@/components/ui/spinner'
 import { normalizeLatexDelimiters } from '@/lib/latex'
 import { deriveThreadTitle } from '@/lib/thread-title'
 import { AristoWordmark } from '@/components/brand/aristo-mark'
@@ -62,6 +61,7 @@ import { cjk } from '@streamdown/cjk'
 import { code } from '@streamdown/code'
 import { createMathPlugin } from '@streamdown/math'
 import { mermaid } from '@streamdown/mermaid'
+import { ConversationSkeleton } from './conversation-skeleton'
 import { EmptyState } from './empty-state'
 import { ThreadList, type ThreadSummary } from './thread-list'
 
@@ -89,34 +89,35 @@ function CopyAnswer({ text }: { text: string }) {
     return () => clearTimeout(timer)
   }, [copied])
 
+  const label = copied ? 'Copied' : 'Copy answer'
+
+  const copy = async () => {
+    // The async clipboard API rejects without a user gesture, in insecure
+    // contexts, and when the permission is denied. Unhandled, that leaves a
+    // button that does nothing at all and logs an uncaught rejection, so
+    // fall back to a selection-based copy before giving up.
+    try {
+      await navigator.clipboard.writeText(text)
+    } catch {
+      const scratch = document.createElement('textarea')
+      scratch.value = text
+      // Off-screen rather than hidden: display:none can't hold a selection.
+      scratch.style.cssText = 'position:fixed;left:-9999px;opacity:0'
+      document.body.append(scratch)
+      scratch.select()
+      try {
+        document.execCommand('copy')
+      } catch {
+        return
+      } finally {
+        scratch.remove()
+      }
+    }
+    setCopied(true)
+  }
+
   return (
-    <MessageAction
-      tooltip={copied ? 'Copied' : 'Copy answer'}
-      onClick={async () => {
-        // The async clipboard API rejects without a user gesture, in insecure
-        // contexts, and when the permission is denied. Unhandled, that leaves a
-        // button that does nothing at all and logs an uncaught rejection, so
-        // fall back to a selection-based copy before giving up.
-        try {
-          await navigator.clipboard.writeText(text)
-        } catch {
-          const scratch = document.createElement('textarea')
-          scratch.value = text
-          // Off-screen rather than hidden: display:none can't hold a selection.
-          scratch.style.cssText = 'position:fixed;left:-9999px;opacity:0'
-          document.body.append(scratch)
-          scratch.select()
-          try {
-            document.execCommand('copy')
-          } catch {
-            return
-          } finally {
-            scratch.remove()
-          }
-        }
-        setCopied(true)
-      }}
-    >
+    <MessageAction label={label} onClick={copy} tooltip={label}>
       {copied ? (
         <Check className="size-3.5 text-primary" />
       ) : (
@@ -176,6 +177,14 @@ function ErrorNotice({
 
 export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const [threads, setThreads] = useState<ThreadSummary[]>([])
+  /*
+   * Whether the thread list has been fetched at least once.
+   *
+   * Only the empty case needs it: an empty `threads` array means "none yet" and
+   * "not asked yet" equally, and the sidebar's copy states the first as fact.
+   * Set inside the fetch after its await, so it never fires during a render.
+   */
+  const [threadsSettled, setThreadsSettled] = useState(false)
   const [activeThreadId, setActiveThreadId] = useState<string | null>(null)
   const [sheetOpen, setSheetOpen] = useState(false)
   const [input, setInput] = useState('')
@@ -217,6 +226,20 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const messagesRef = useRef(messages)
   const threadsRef = useRef(threads)
   const loadedThreadIdRef = useRef(loadedThreadId)
+  const composerRef = useRef<HTMLTextAreaElement>(null)
+
+  /*
+   * Focus the composer whenever a chat is opened - on mount and on every thread
+   * switch, including "New chat". The workspace never unmounts between threads,
+   * so `autoFocus` would only ever fire once; keying the effect on the active
+   * thread covers the later opens too. Skipped on coarse pointers, where taking
+   * focus pops the on-screen keyboard over a conversation the student is still
+   * reading.
+   */
+  useEffect(() => {
+    if (window.matchMedia('(pointer: coarse)').matches) return
+    composerRef.current?.focus()
+  }, [activeThreadId])
   useEffect(() => {
     messagesRef.current = messages
   }, [messages])
@@ -229,9 +252,15 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
 
   const refreshThreads = useCallback(async () => {
     const res = await fetch('/api/threads')
-    if (!res.ok) return [] as ThreadSummary[]
+    // Marked settled either way. A failed first fetch should fall through to the
+    // empty copy, not leave the sidebar loading forever.
+    if (!res.ok) {
+      setThreadsSettled(true)
+      return [] as ThreadSummary[]
+    }
     const data = await res.json()
     setThreads(data.threads)
+    setThreadsSettled(true)
     return data.threads as ThreadSummary[]
   }, [])
 
@@ -384,6 +413,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     <ThreadList
       threads={threads}
       activeThreadId={activeThreadId}
+      loading={!threadsSettled}
       onSelect={(id) => {
         setActiveThreadId(id)
         setSheetOpen(false)
@@ -407,7 +437,18 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
         <ThemeToggle />
       </div>
       <div className="flex gap-2">
-        <Button variant="outline" size="sm" className="flex-1" render={<Link href="/settings" />}>
+        {/* This one really is a link, not a button: it navigates to /settings,
+            so it should be middle-clickable and open in a new tab. Base UI
+            assumes a native <button> unless told otherwise, and warns because
+            rendering an <a> would silently drop button semantics. Here dropping
+            them is the intent, so nativeButton is false. */}
+        <Button
+          variant="outline"
+          size="sm"
+          className="flex-1"
+          nativeButton={false}
+          render={<Link href="/settings" />}
+        >
           <SlidersHorizontal className="size-3.5" />
           Subjects
         </Button>
@@ -477,16 +518,17 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
           </Button>
         </header>
 
-        {loadingHistory ? (
+        {loadingHistory || !threadsSettled ? (
           // Quiet placeholder, never the starter questions: showing those while
           // a real conversation loads tells the student the thread is empty and
-          // then contradicts itself a second later.
-          <div className="flex min-h-0 flex-1 items-center justify-center">
-            <span className="sr-only" role="status">
-              Loading conversation
-            </span>
-            <Spinner aria-hidden className="size-5 text-muted-foreground" />
-          </div>
+          // then contradicts itself a second later. Message-shaped rather than a
+          // spinner, so switching threads holds the conversation's layout
+          // instead of collapsing to a dot and springing back.
+          //
+          // `threadsSettled` covers the same flash at boot: until the first
+          // fetch lands there is no active thread yet, and without it the
+          // starter questions appear for that beat on every page load.
+          <ConversationSkeleton />
         ) : messages.length === 0 ? (
           <div className="min-h-0 flex-1 overflow-y-auto">
             <EmptyState onPick={submitText} disabled={busy || !activeThreadId} />
@@ -594,6 +636,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                 top and bottom. The textarea has to be a direct child. */}
             <PromptInput onSubmit={() => submitText(input)}>
               <PromptInputTextarea
+                ref={composerRef}
                 onChange={(e) => setInput(e.target.value)}
                 value={input}
                 placeholder="Ask about your syllabus…"

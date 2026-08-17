@@ -101,7 +101,13 @@ export const MessageAction = ({
     return (
       <TooltipProvider>
         <Tooltip>
-          <TooltipTrigger>{button}</TooltipTrigger>
+          {/*
+           * `render` merges the trigger onto the button instead of wrapping it.
+           * Base UI's trigger is itself a <button>, so wrapping would nest a
+           * button inside a button - invalid HTML, and React reports it as a
+           * hydration error.
+           */}
+          <TooltipTrigger render={button} />
           <TooltipContent>
             <p>{tooltip}</p>
           </TooltipContent>

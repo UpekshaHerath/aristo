@@ -24,6 +24,8 @@ export function PasswordField({
   required = true,
   hint,
   className,
+  onFocusChange,
+  onRevealChange,
 }: {
   label?: string
   value: string
@@ -35,6 +37,13 @@ export function PasswordField({
   /** Shown under the field - requirements, not errors. */
   hint?: string
   className?: string
+  /*
+   * Both optional, and only for reacting to the field - never for reading it.
+   * The sign-in page uses them to cover the mascot's eyes while a password is
+   * on screen, which is a fact about focus and visibility, not about the value.
+   */
+  onFocusChange?: (focused: boolean) => void
+  onRevealChange?: (revealed: boolean) => void
 }) {
   const id = useId()
   const [revealed, setRevealed] = useState(false)
@@ -50,7 +59,25 @@ export function PasswordField({
     <div className={cn('space-y-2', className)}>
       <Label htmlFor={id}>{label}</Label>
 
-      <div className="relative">
+      {/*
+       * Focus is reported for the group, not the input.
+       *
+       * Focus events bubble in React, so pressing the reveal toggle - which
+       * takes focus off the input - still counts as being in the field. Reporting
+       * the input alone made the toggle read as leaving the field entirely, and
+       * the mascot dropped its hands instead of peeking over them.
+       *
+       * `relatedTarget` is where focus is going; inside this group it is a move
+       * between the input and its own button, not an exit.
+       */}
+      <div
+        className="relative"
+        onFocus={() => onFocusChange?.(true)}
+        onBlur={(event) => {
+          if (event.currentTarget.contains(event.relatedTarget)) return
+          onFocusChange?.(false)
+        }}
+      >
         <Input
           id={id}
           // Toggling the type is what reveals the value. The field keeps its
@@ -73,7 +100,20 @@ export function PasswordField({
           type="button"
           // Without this the button submits the form on Enter in some browsers,
           // which would sign the student in when they meant to peek.
-          onClick={() => setRevealed((current) => !current)}
+          //
+          // Keeps the caret in the field: peeking mid-password should not cost
+          // you your place. It also keeps focus tracking honest - Safari and
+          // Firefox do not focus a button on click, so without this the group
+          // would report a blur to nowhere and the mascot would drop its hands.
+          onMouseDown={(event) => event.preventDefault()}
+          // Next value computed here rather than in a state updater: React may
+          // run an updater twice, and a parent callback fired from inside one
+          // would fire twice with it.
+          onClick={() => {
+            const next = !revealed
+            setRevealed(next)
+            onRevealChange?.(next)
+          }}
           aria-label={revealed ? 'Hide password' : 'Show password'}
           aria-pressed={revealed}
           aria-controls={id}
