@@ -194,6 +194,22 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     transport: new DefaultChatTransport({ api: '/api/chat' }),
   })
 
+  /*
+   * Current messages and threads, mirrored into refs.
+   *
+   * createThread needs to read both, but taking them as dependencies would
+   * change its identity on every streamed chunk — and the bootstrap effect below
+   * keys off that identity. Refs keep the callback stable.
+   */
+  const messagesRef = useRef(messages)
+  const threadsRef = useRef(threads)
+  useEffect(() => {
+    messagesRef.current = messages
+  }, [messages])
+  useEffect(() => {
+    threadsRef.current = threads
+  }, [threads])
+
   const refreshThreads = useCallback(async () => {
     const res = await fetch('/api/threads')
     if (!res.ok) return [] as ThreadSummary[]
@@ -203,6 +219,14 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   }, [])
 
   const createThread = useCallback(async () => {
+    // Already sitting on an empty thread — reuse it. Otherwise every press of
+    // "New" adds another untouched "New chat" to the sidebar, which is how the
+    // list fills with identical empty rows.
+    if (activeThreadId && messagesRef.current.length === 0) {
+      setSheetOpen(false)
+      return threadsRef.current.find((t) => t.id === activeThreadId) ?? null
+    }
+
     const res = await fetch('/api/threads', { method: 'POST' })
     if (!res.ok) return null
     const { thread } = await res.json()
@@ -211,7 +235,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     setMessages([])
     setSheetOpen(false)
     return thread as ThreadSummary
-  }, [setMessages])
+  }, [setMessages, activeThreadId])
 
   // Guards the bootstrap effect against React 18 double-invoke in dev, which
   // would otherwise create two empty threads on every fresh load.

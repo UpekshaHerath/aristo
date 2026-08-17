@@ -7,6 +7,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Spinner } from '@/components/ui/spinner'
+import { PasswordField } from '@/components/password-field'
 import { AristoMascot } from '@/components/brand/aristo-mascot'
 
 type Mode = 'signin' | 'signup'
@@ -57,6 +58,35 @@ function LoginForm() {
 
     router.push(next)
     router.refresh()
+  }
+
+  /**
+   * Sends the password-reset email.
+   *
+   * The link lands on /auth/callback, which already exchanges the code for a
+   * session, and `next` then carries the now-authenticated student to the form
+   * where they choose a new password.
+   */
+  const handleResetPassword = async () => {
+    if (!email) {
+      setError('Enter your email address first, then choose “Forgot password?”.')
+      return
+    }
+    setPending(true)
+    setError(null)
+    setNotice(null)
+
+    const supabase = createClient()
+    const { error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${window.location.origin}/auth/callback?next=/auth/update-password`,
+    })
+    setPending(false)
+
+    if (error) {
+      setError(error.message)
+      return
+    }
+    setNotice(`If an account exists for ${email}, a reset link is on its way.`)
   }
 
   const handleMagicLink = async () => {
@@ -112,25 +142,35 @@ function LoginForm() {
               inputMode="email"
               autoComplete="email"
               required
+              // The first field on a page whose only purpose is this form.
+              autoFocus
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="you@school.edu"
             />
           </div>
 
-          <div className="space-y-2">
-            <Label htmlFor="password">Password</Label>
-            <Input
-              id="password"
-              type="password"
-              autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
-              required
-              minLength={8}
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              placeholder={mode === 'signup' ? 'At least 8 characters' : ''}
-            />
-          </div>
+          <PasswordField
+            value={password}
+            onChange={setPassword}
+            autoComplete={mode === 'signup' ? 'new-password' : 'current-password'}
+            minLength={8}
+            placeholder={mode === 'signup' ? 'At least 8 characters' : ''}
+            hint={mode === 'signup' ? 'At least 8 characters.' : undefined}
+          />
+
+          {mode === 'signin' && (
+            <div className="-mt-1 flex justify-end">
+              <button
+                type="button"
+                className="text-muted-foreground text-sm underline underline-offset-4 hover:text-foreground"
+                onClick={handleResetPassword}
+                disabled={pending}
+              >
+                Forgot password?
+              </button>
+            </div>
+          )}
 
           {error ? (
             <p

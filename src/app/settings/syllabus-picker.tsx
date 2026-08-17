@@ -1,12 +1,17 @@
 'use client'
 
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { Check } from 'lucide-react'
 import { createClient } from '@/lib/supabase/client'
 import { groupedSyllabuses } from '@/lib/syllabuses'
 import { Button } from '@/components/ui/button'
 import { Spinner } from '@/components/ui/spinner'
 import { cn } from '@/lib/utils'
+
+/** True when the two sets hold the same codes, regardless of order. */
+function sameCodes(a: Set<string>, b: Set<string>) {
+  return a.size === b.size && [...a].every((code) => b.has(code))
+}
 
 export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
   const [selected, setSelected] = useState<Set<string>>(new Set(initialCodes))
@@ -16,6 +21,25 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
   const [status, setStatus] = useState<
     { kind: 'ok' | 'error'; message: string } | null
   >(null)
+
+  // What is currently persisted. Updated on a successful save so the dirty
+  // check keeps working across several saves without a page reload.
+  const [saved, setSaved] = useState<Set<string>>(new Set(initialCodes))
+  const dirty = !sameCodes(selected, saved)
+
+  /*
+   * Selecting subjects is easy to do and easy to walk away from — the picker is
+   * one tap from the chat. Without this the choice is silently discarded.
+   * Covers tab close and reload; in-app navigation is handled by the notice
+   * beside the Save button, since Next's client router doesn't fire this.
+   */
+  useEffect(() => {
+    if (!dirty) return
+
+    const warn = (event: BeforeUnloadEvent) => event.preventDefault()
+    window.addEventListener('beforeunload', warn)
+    return () => window.removeEventListener('beforeunload', warn)
+  }, [dirty])
 
   const toggle = (code: string) => {
     setStatus(null)
@@ -54,6 +78,7 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
     )
 
     setSaving(false)
+    if (!error) setSaved(new Set(selected))
     setStatus(
       error
         ? { kind: 'error', message: error.message }
@@ -117,7 +142,9 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
       ))}
 
       <div className="sticky bottom-0 flex items-center gap-3 border-t bg-background/85 py-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] backdrop-blur">
-        <Button onClick={save} disabled={saving}>
+        {/* Nothing to save when nothing changed — an always-live Save button
+            gives no signal about whether the choice has been committed. */}
+        <Button onClick={save} disabled={saving || !dirty}>
           {saving && <Spinner className="size-4" />}
           {saving ? 'Saving…' : 'Save subjects'}
         </Button>
@@ -129,6 +156,12 @@ export function SyllabusPicker({ initialCodes }: { initialCodes: string[] }) {
             ? 'All syllabuses'
             : `${selected.size} selected`}
         </span>
+
+        {dirty && !saving ? (
+          <span className="animate-rise text-highlight text-sm">
+            Unsaved changes
+          </span>
+        ) : null}
 
         {status ? (
           <p
