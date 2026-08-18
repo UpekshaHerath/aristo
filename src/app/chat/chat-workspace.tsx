@@ -524,7 +524,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
           {/* Still a real form post rather than a click handler - sign-out has
               to clear an httpOnly cookie, which only the server can do. */}
           <form action="/auth/signout" method="post">
-            <DropdownMenuItem render={<button type="submit" className="w-full" />}>
+            <DropdownMenuItem nativeButton render={<button type="submit" className="w-full" />}>
               <LogOut className="size-3.5" />
               Sign out
             </DropdownMenuItem>

@@ -1,9 +1,19 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 180 180" width="180" height="180">
-  <!-- iOS applies its own mask, so the tile is drawn edge to edge and the
-       letterform is inset well clear of the corners. -->
-  <rect width="180" height="180" fill="#2f3b46"/>
-  <g fill="none" stroke="#d9a441" stroke-width="13" stroke-linecap="round" stroke-linejoin="round">
-    <path d="M56 128 90 50l34 78"/>
-    <path d="M68.5 100.5h43"/>
+  <!-- iOS applies its own mask, so the tile is drawn edge to edge with no
+       corner radius of its own and the glyph sits well clear of the corners.
+       Geometry is src/app/icon.svg scaled by 5.625. -->
+  <defs>
+    <linearGradient id="tile" x1="0" y1="0" x2="180" y2="180" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#25384a"/><stop offset="1" stop-color="#111a24"/>
+    </linearGradient>
+    <linearGradient id="swipe" x1="22.5" y1="0" x2="157.5" y2="0" gradientUnits="userSpaceOnUse">
+      <stop stop-color="#f2bb4f"/><stop offset="1" stop-color="#dd9331"/>
+    </linearGradient>
+  </defs>
+  <rect width="180" height="180" fill="url(#tile)"/>
+  <g transform="rotate(-5 90 106.9)">
+    <rect x="25.3" y="91.1" width="129.4" height="32.6" rx="6.8" fill="url(#swipe)"/>
   </g>
+  <path d="M48.4 146.25 90 39.4l41.6 106.85" fill="none" stroke="#f6f3ea" stroke-width="16.9"
+        stroke-linecap="round" stroke-linejoin="round"/>
 </svg>

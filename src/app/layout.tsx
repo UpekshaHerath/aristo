@@ -60,7 +60,16 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
       suppressHydrationWarning
       className={`${geistSans.variable} ${geistMono.variable} ${sourceSerif.variable} h-full antialiased`}
     >
-      <body className="flex min-h-full flex-col">
+      <body
+        // Not for anything this app renders. Extensions that proofread as you
+        // type - Grammarly writes `data-gr-ext-installed`, and it is far from
+        // the only one - stamp attributes onto <body> before React hydrates,
+        // and React reports the difference as a mismatch the author cannot fix.
+        // Suppressed one level deep, so a genuine mismatch inside the tree is
+        // still reported.
+        suppressHydrationWarning
+        className="flex min-h-full flex-col"
+      >
         <ThemeProvider
           attribute="class"
           defaultTheme="system"
