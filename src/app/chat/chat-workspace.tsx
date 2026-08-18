@@ -22,6 +22,7 @@ import {
   PromptInputTextarea,
   PromptInputTools,
 } from '@/components/ai-elements/prompt-input'
+import { SpeechInput } from '@/components/ai-elements/speech-input'
 import {
   Conversation,
   ConversationContent,
@@ -272,6 +273,64 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const threadsRef = useRef(threads)
   const loadedThreadIdRef = useRef(loadedThreadId)
   const composerRef = useRef<HTMLTextAreaElement>(null)
+  /*
+   * Why voice failures need their own slot: the chat `error` above belongs to
+   * useChat and is cleared by its own retry, and SpeechInput swallows whatever
+   * the transcription callback throws. Without this a denied microphone or a
+   * rejected clip leaves a button that appears to do nothing.
+   */
+  const [voiceError, setVoiceError] = useState<string | null>(null)
+
+  /**
+   * Adds a finished phrase to whatever is already typed.
+   *
+   * Appended rather than sent: dictation mishears names and formulae, and a
+   * question that goes straight to the agent can't be corrected first. The
+   * student reviews, edits, then presses send as usual.
+   */
+  const appendTranscript = useCallback((text: string) => {
+    const phrase = text.trim()
+    if (!phrase) return
+    setVoiceError(null)
+    setInput((current) =>
+      current.trim() ? `${current.trimEnd()} ${phrase}` : phrase
+    )
+    composerRef.current?.focus()
+  }, [])
+
+  /**
+   * Fallback path for browsers without SpeechRecognition - in practice Firefox,
+   * which ships it disabled by default. SpeechInput records with MediaRecorder
+   * and hands the clip here, where it is transcribed server-side for a fee.
+   */
+  const transcribeRecording = useCallback(async (audio: Blob) => {
+    setVoiceError(null)
+    let res: Response
+    try {
+      const body = new FormData()
+      // The filename is what tells the server-side decoder the container type.
+      body.append('audio', audio, 'speech.webm')
+      res = await fetch('/api/transcribe', { method: 'POST', body })
+    } catch {
+      setVoiceError('Could not reach the server to transcribe that.')
+      return ''
+    }
+
+    if (!res.ok) {
+      const detail = await res
+        .json()
+        .then((body: { error?: string }) => body.error)
+        .catch(() => undefined)
+      setVoiceError(detail ?? "That recording couldn't be transcribed.")
+      return ''
+    }
+
+    const { text } = (await res.json()) as { text?: string }
+    if (!text) {
+      setVoiceError("Didn't catch that. Try again a little closer to the mic.")
+    }
+    return text ?? ''
+  }, [])
 
   /*
    * Focus the composer whenever a chat is opened - on mount and on every thread
@@ -740,7 +799,12 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
             <PromptInput onSubmit={() => submitText(input)}>
               <PromptInputTextarea
                 ref={composerRef}
-                onChange={(e) => setInput(e.target.value)}
+                onChange={(e) => {
+                  setInput(e.target.value)
+                  // Typing is the student moving on; the last dictation failure
+                  // stops being news at that point.
+                  if (voiceError) setVoiceError(null)
+                }}
                 value={input}
                 placeholder="Ask about your syllabus…"
                 // Deliberately NOT disabled while streaming. A student who has
@@ -750,8 +814,30 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
               />
               <PromptInputFooter>
                 <PromptInputTools>
-                  <span className="pl-1 text-muted-foreground text-xs">
-                    Aristo can make mistakes. Check against your syllabus.
+                  {/* type="button": inside the composer's form, the default
+                      submit type would fire the question off mid-sentence. */}
+                  <SpeechInput
+                    type="button"
+                    size="icon-sm"
+                    aria-label="Dictate your question"
+                    title="Dictate your question"
+                    disabled={!activeThreadId}
+                    onTranscriptionChange={appendTranscript}
+                    onAudioRecorded={transcribeRecording}
+                  />
+                  {/* The disclaimer's slot doubles as the voice error's, so a
+                      failed dictation is named where the student is looking
+                      instead of adding a second line of chrome. */}
+                  <span
+                    className={
+                      voiceError
+                        ? 'pl-1 text-destructive text-xs'
+                        : 'pl-1 text-muted-foreground text-xs'
+                    }
+                    role={voiceError ? 'alert' : undefined}
+                  >
+                    {voiceError ??
+                      'Aristo can make mistakes. Check against your syllabus.'}
                   </span>
                 </PromptInputTools>
                 {/* status drives the icon: spinner while submitted, a stop

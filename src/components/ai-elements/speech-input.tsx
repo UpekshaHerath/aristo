@@ -92,6 +92,7 @@ export const SpeechInput = ({
   onTranscriptionChange,
   onAudioRecorded,
   lang = "en-US",
+  disabled: disabledByCaller,
   ...props
 }: SpeechInputProps) => {
   const [isListening, setIsListening] = useState(false);
@@ -281,6 +282,7 @@ export const SpeechInput = ({
 
   // Determine if button should be disabled
   const isDisabled =
+    Boolean(disabledByCaller) ||
     mode === "none" ||
     (mode === "speech-recognition" && !isRecognitionReady) ||
     (mode === "media-recorder" && !onAudioRecorded) ||
