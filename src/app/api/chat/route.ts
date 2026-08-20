@@ -8,6 +8,7 @@ import { getUser, resourceIdFor } from '@/lib/auth'
 import { getProfile, retrievalFilterFor } from '@/lib/profile'
 import { AGENT_ID } from '@/lib/agent'
 import { SYLLABUS_TOP_K } from '@/mastra/rag/config'
+import { HAS_IMAGE } from '@/mastra/models'
 
 // Mastra needs Node APIs and a real pg socket, so this route can't run on Edge.
 export const runtime = 'nodejs'
@@ -30,6 +31,30 @@ async function assertThreadOwnership(threadId: string, resourceId: string) {
   // Compare explicitly rather than relying on a resourceId filter: the base
   // memory type doesn't accept one, and an unscoped lookup returns any thread.
   return thread?.resourceId === resourceId
+}
+
+/**
+ * Whether this turn puts an image in front of the model.
+ *
+ * Only the newest user message counts, not the whole history. The agent picks
+ * one model for the run, and once a thread has ever contained a photo every
+ * later text-only question would otherwise be billed to Gemini for the rest of
+ * the thread's life. Older images still replay from memory, and a model that
+ * cannot see skips them rather than failing.
+ */
+function carriesImage(messages: unknown): boolean {
+  if (!Array.isArray(messages)) return false
+  const latest = messages.at(-1)
+  if (!latest || typeof latest !== 'object') return false
+
+  const { role, parts } = latest as { role?: string; parts?: unknown }
+  if (role !== 'user' || !Array.isArray(parts)) return false
+
+  return parts.some((part) => {
+    if (!part || typeof part !== 'object') return false
+    const { type, mediaType } = part as { type?: string; mediaType?: string }
+    return type === 'file' && typeof mediaType === 'string' && mediaType.startsWith('image/')
+  })
 }
 
 export async function POST(req: Request) {
@@ -72,6 +97,15 @@ export async function POST(req: Request) {
    * before the model saw it. Three passages still ground an answer.
    */
   requestContext.set('topK', SYLLABUS_TOP_K)
+
+  /*
+   * Which model answers this turn. Groq has no vision model at all, so a photo
+   * has to be routed to Gemini; the agent reads this flag to choose, and to
+   * choose the matching input-token ceiling. Decided here because this is the
+   * only layer that sees the incoming parts - the agent is handed messages
+   * that have already been through memory.
+   */
+  requestContext.set(HAS_IMAGE, carriesImage(params.messages))
 
   /*
    * A throw here - a model outage, a bad key, a provider rate limit - would

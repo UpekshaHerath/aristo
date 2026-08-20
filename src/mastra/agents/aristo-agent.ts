@@ -2,7 +2,7 @@ import { Agent } from '@mastra/core/agent'
 import { TokenLimiterProcessor } from '@mastra/core/processors'
 import { Memory } from '@mastra/memory'
 import { createSyllabusQueryTool } from '../rag/syllabus-tool'
-import { MAX_INPUT_TOKENS } from '../rag/config'
+import { HAS_IMAGE, TEXT_MODEL, VISION_MODEL, inputTokenLimitFor } from '../models'
 
 // Null when DATABASE_URL or the embedding provider key is absent; the agent
 // then runs without a knowledge base rather than failing to construct.
@@ -21,6 +21,16 @@ Always call searchSyllabus before answering a subject question. The retrieved pa
 - If retrieval returns nothing useful, say so plainly: tell the student the topic isn't in your syllabus material yet, then answer from general knowledge and clearly mark that part as not syllabus-verified.
 - Never invent a syllabus code, mark allocation, assessment objective, or paper number. If you are not certain of one, leave it out.
 - Where a passage names the syllabus code or topic, cite it inline, e.g. "(Physics 0625, Topic 4.2)".
+
+## Images
+
+A student may attach a photo instead of typing the question out - usually a past paper question, their own written attempt, or a diagram.
+
+- Read the image first and say briefly what you can see in it, so the student can correct you before you answer the wrong question.
+- Search the syllabus on what the image is about, exactly as you would for a typed question. A photograph is not a reason to skip grounding.
+- Photographs of handwriting are frequently ambiguous. If a digit, index, sign or unit could be read more than one way and it changes the answer, say which reading you took and why - do not silently pick one.
+- If the image is too blurred, cropped or dark to read the part that matters, say precisely what you cannot make out and ask for that part again. Do not guess at it.
+- When the photo shows the student's own attempt, mark what is right before what is wrong, then name the specific step where it went wrong.
 
 ## Teaching
 
@@ -61,16 +71,11 @@ inside the maths via \`\\text{}\` - $9.81\\ \\text{m/s}^2$, not $9.81$ m/s^2.
 
 Whichever delimiters you use are normalised before rendering
 (see src/lib/latex.ts), so don't worry about the dollar-sign convention.`,
-  // Groq is fast and free for text. Image input arrives in phase 04, which
-  // needs a vision model - Groq has none, so that turn will route to Gemini.
-  //
-  // NOT llama-3.3-70b-versatile. It emits a malformed tool-call tag on Groq -
-  // `<function=searchSyllabus{...}` with no closing `>` after the name - which
-  // Groq rejects with `tool_use_failed`. Measured 4 failures in 5 attempts, so
-  // grounding is effectively dead on that model. gpt-oss-120b uses structured
-  // tool calling and failed none. Its free-tier rate limit is the tighter
-  // constraint; openai/gpt-oss-20b is the fallback if 429s become a problem.
-  model: 'groq/openai/gpt-oss-120b',
+  // Groq is fast and free but cannot see, so a turn carrying a photo routes to
+  // Gemini instead. The flag is set by the chat route, which is the only place
+  // that has the incoming message parts to inspect. See src/mastra/models.ts.
+  model: ({ requestContext }) =>
+    requestContext.get(HAS_IMAGE) ? VISION_MODEL : TEXT_MODEL,
   tools: syllabusQueryTool ? { searchSyllabus: syllabusQueryTool } : {},
   // Deliberately off, despite naming threads being exactly what we want.
   //
@@ -100,10 +105,14 @@ Whichever delimiters you use are normalised before rendering
    * prompt. `contiguous` keeps an unbroken suffix of the conversation rather
    * than the largest set of messages that happens to fit - a history with holes
    * in it reads as the assistant losing the plot mid-thread.
+   *
+   * The limit follows the model. An image turn is answered by Gemini, whose
+   * budget is nowhere near as tight, and applying Groq's ceiling to it would
+   * trim away either the photo or the passages grounding the answer.
    */
-  inputProcessors: [
+  inputProcessors: ({ requestContext }) => [
     new TokenLimiterProcessor({
-      limit: MAX_INPUT_TOKENS,
+      limit: inputTokenLimitFor(Boolean(requestContext.get(HAS_IMAGE))),
       trimMode: 'contiguous',
     }),
   ],

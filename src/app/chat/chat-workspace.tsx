@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react'
 import Link from 'next/link'
-import { DefaultChatTransport, type ToolUIPart } from 'ai'
+import { DefaultChatTransport, type ChatStatus, type FileUIPart, type ToolUIPart } from 'ai'
 import { useChat } from '@ai-sdk/react'
 import {
   Check,
   Copy,
+  ImagePlus,
   LogOut,
   PanelLeft,
   RotateCcw,
@@ -17,11 +18,20 @@ import {
 
 import {
   PromptInput,
+  PromptInputButton,
   PromptInputFooter,
   PromptInputSubmit,
   PromptInputTextarea,
   PromptInputTools,
+  usePromptInputAttachments,
+  type PromptInputMessage,
 } from '@/components/ai-elements/prompt-input'
+import {
+  Attachment,
+  AttachmentPreview,
+  AttachmentRemove,
+  Attachments,
+} from '@/components/ai-elements/attachments'
 import { SpeechInput } from '@/components/ai-elements/speech-input'
 import {
   Conversation,
@@ -64,6 +74,14 @@ import { Label } from '@/components/ui/label'
 import { ThemeToggle } from '@/components/theme-toggle'
 import { normalizeLatexDelimiters } from '@/lib/latex'
 import { deriveThreadTitle } from '@/lib/thread-title'
+import {
+  ACCEPTED_IMAGE_TYPES,
+  ChatImageError,
+  MAX_IMAGES_PER_MESSAGE,
+  MAX_IMAGE_BYTES,
+  isImagePart,
+  uploadChatImage,
+} from '@/lib/chat-image'
 import { AristoWordmark } from '@/components/brand/aristo-mark'
 import { AristoMascot } from '@/components/brand/aristo-mascot'
 import { cjk } from '@streamdown/cjk'
@@ -86,6 +104,91 @@ const streamdownPlugins = {
   code,
   mermaid,
   math: createMathPlugin({ singleDollarTextMath: true }),
+}
+
+/**
+ * Opens the file picker for the composer.
+ *
+ * Its own component because `usePromptInputAttachments` reads a context that
+ * PromptInput provides, so the hook can only run inside it.
+ */
+function AttachImageButton({ disabled }: { disabled?: boolean }) {
+  const attachments = usePromptInputAttachments()
+  const full = attachments.files.length >= MAX_IMAGES_PER_MESSAGE
+
+  return (
+    <PromptInputButton
+      // Inside the composer's form, the default submit type would fire the
+      // question off the moment the student reaches for a photo.
+      type="button"
+      size="icon-sm"
+      aria-label="Attach a photo"
+      title={full ? 'One photo per question' : 'Attach a photo'}
+      disabled={disabled || full}
+      onClick={attachments.openFileDialog}
+    >
+      <ImagePlus className="size-4" />
+    </PromptInputButton>
+  )
+}
+
+/** The picked photo, shown above the textarea until the question is sent. */
+function ComposerAttachments() {
+  const attachments = usePromptInputAttachments()
+  if (attachments.files.length === 0) return null
+
+  return (
+    <Attachments className="ml-0 px-3 pt-3" variant="grid">
+      {attachments.files.map((file) => (
+        <Attachment
+          data={file}
+          key={file.id}
+          onRemove={() => attachments.remove(file.id)}
+        >
+          <AttachmentPreview />
+          <AttachmentRemove />
+        </Attachment>
+      ))}
+    </Attachments>
+  )
+}
+
+/**
+ * The send button.
+ *
+ * Split out for the same reason as the two components above: whether there is
+ * anything to send depends on the attached files, and those live in a context
+ * only PromptInput's children can read. A photo with no typed question is a
+ * complete message, so an empty textarea is not on its own a reason to disable.
+ */
+function ComposerSubmit({
+  busy,
+  disabled,
+  hasText,
+  onStop,
+  status,
+  uploading,
+}: {
+  busy: boolean
+  disabled: boolean
+  hasText: boolean
+  onStop: () => void
+  status: ChatStatus
+  uploading: boolean
+}) {
+  const attachments = usePromptInputAttachments()
+  const empty = !hasText && attachments.files.length === 0
+
+  return (
+    // The spinner is borrowed for the upload too. From the student's side the
+    // wait is the same wait - the question is on its way - and a send button
+    // that looks idle while a photo uploads invites a second press.
+    <PromptInputSubmit
+      status={uploading ? 'submitted' : status}
+      onStop={onStop}
+      disabled={uploading || (!busy && (empty || disabled))}
+    />
+  )
 }
 
 /** Copies an answer, confirming with a tick so the click isn't silent. */
@@ -274,12 +377,18 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const loadedThreadIdRef = useRef(loadedThreadId)
   const composerRef = useRef<HTMLTextAreaElement>(null)
   /*
-   * Why voice failures need their own slot: the chat `error` above belongs to
-   * useChat and is cleared by its own retry, and SpeechInput swallows whatever
-   * the transcription callback throws. Without this a denied microphone or a
-   * rejected clip leaves a button that appears to do nothing.
+   * Why the composer needs its own error slot: the chat `error` above belongs
+   * to useChat and is cleared by its own retry, and it only ever covers a turn
+   * that reached the agent. Everything that fails before that - a denied
+   * microphone, a rejected clip, an image that wouldn't upload - would leave a
+   * button that appears to do nothing.
    */
-  const [voiceError, setVoiceError] = useState<string | null>(null)
+  const [composerError, setComposerError] = useState<string | null>(null)
+  /*
+   * True while a photo is on its way to storage. The send button waits on it:
+   * an image that hasn't finished uploading has no URL for the model to fetch.
+   */
+  const [uploading, setUploading] = useState(false)
 
   /**
    * Adds a finished phrase to whatever is already typed.
@@ -291,7 +400,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
   const appendTranscript = useCallback((text: string) => {
     const phrase = text.trim()
     if (!phrase) return
-    setVoiceError(null)
+    setComposerError(null)
     setInput((current) =>
       current.trim() ? `${current.trimEnd()} ${phrase}` : phrase
     )
@@ -304,7 +413,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
    * and hands the clip here, where it is transcribed server-side for a fee.
    */
   const transcribeRecording = useCallback(async (audio: Blob) => {
-    setVoiceError(null)
+    setComposerError(null)
     let res: Response
     try {
       const body = new FormData()
@@ -312,7 +421,7 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
       body.append('audio', audio, 'speech.webm')
       res = await fetch('/api/transcribe', { method: 'POST', body })
     } catch {
-      setVoiceError('Could not reach the server to transcribe that.')
+      setComposerError('Could not reach the server to transcribe that.')
       return ''
     }
 
@@ -321,13 +430,13 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
         .json()
         .then((body: { error?: string }) => body.error)
         .catch(() => undefined)
-      setVoiceError(detail ?? "That recording couldn't be transcribed.")
+      setComposerError(detail ?? "That recording couldn't be transcribed.")
       return ''
     }
 
     const { text } = (await res.json()) as { text?: string }
     if (!text) {
-      setVoiceError("Didn't catch that. Try again a little closer to the mic.")
+      setComposerError("Didn't catch that. Try again a little closer to the mic.")
     }
     return text ?? ''
   }, [])
@@ -455,17 +564,48 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
     }
   }, [activeThreadId, loadedThreadId, setMessages])
 
-  const submitText = async (text: string) => {
+  /**
+   * Sends one question, with or without a photo attached.
+   *
+   * Throws rather than returning quietly when the upload fails, because that is
+   * what stops PromptInput clearing the composer - the student keeps both their
+   * typed question and the photo they picked, and can simply press send again.
+   */
+  const submitMessage = async ({ text, files }: PromptInputMessage) => {
     const trimmed = text.trim()
-    if (!trimmed || !activeThreadId) return
+    const images = (files ?? []).filter(isImagePart)
+    if ((!trimmed && images.length === 0) || !activeThreadId) return
+
+    // The photo has to reach storage before the turn is sent: what goes into the
+    // message is a URL, and the model fetches it server-side.
+    let attachments: typeof images = []
+    if (images.length > 0) {
+      setUploading(true)
+      try {
+        attachments = await Promise.all(images.map(uploadChatImage))
+      } catch (cause) {
+        setComposerError(
+          cause instanceof ChatImageError
+            ? cause.message
+            : "That image couldn't be uploaded. Try again."
+        )
+        throw cause
+      } finally {
+        setUploading(false)
+      }
+    }
+
     setInput('')
+    setComposerError(null)
 
     // Name the thread from its opening question, before the answer starts
     // arriving. Done here rather than after the response so the sidebar stops
     // showing a column of identical "New chat" rows the instant you ask.
     const isFirstMessage = messagesRef.current.length === 0
     if (isFirstMessage) {
-      const title = deriveThreadTitle(trimmed)
+      // A photo sent with no question of its own has no words to name the thread
+      // after, so it gets a placeholder that at least says what is in it.
+      const title = trimmed ? deriveThreadTitle(trimmed) : 'Photo question'
       // Optimistic: the row is renamed immediately and the PATCH catches up.
       setThreads((current) =>
         current.map((thread) =>
@@ -479,9 +619,20 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
       })
     }
 
-    await sendMessage({ text: trimmed }, { body: { threadId: activeThreadId } })
+    // A photo on its own goes without a text part rather than with an empty one:
+    // an empty string still becomes a part, and it renders as a blank bubble
+    // above the image for the rest of the thread's life.
+    await sendMessage(
+      trimmed
+        ? { text: trimmed, files: attachments }
+        : { files: attachments },
+      { body: { threadId: activeThreadId } }
+    )
     refreshThreads()
   }
+
+  /** The text-only path, for the suggestion chips on an empty thread. */
+  const submitText = (text: string) => submitMessage({ text, files: [] })
 
   const confirmRename = async () => {
     if (!renaming || !renameValue.trim()) return
@@ -682,6 +833,27 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                   className="flex animate-rise flex-col gap-3 py-3"
                 >
                   {message.parts?.map((part, i) => {
+                    // A photo the student attached. Pinned right like their
+                    // text bubble so a question made of an image and a sentence
+                    // reads as one turn rather than two.
+                    if (isImagePart(part)) {
+                      const file = part as FileUIPart
+                      return (
+                        <Attachments
+                          className="ml-auto"
+                          key={`${message.id}-${i}`}
+                          variant="grid"
+                        >
+                          <Attachment
+                            className="size-40"
+                            data={{ ...file, id: `${message.id}-${i}` }}
+                          >
+                            <AttachmentPreview />
+                          </Attachment>
+                        </Attachments>
+                      )
+                    }
+
                     if (part.type === 'text') {
                       const isAssistant = message.role !== 'user'
                       return (
@@ -796,14 +968,35 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                 InputGroup's `has-[>textarea]:h-auto` rule stops matching and the
                 group keeps its 32px default height - clipping the 64px textarea
                 top and bottom. The textarea has to be a direct child. */}
-            <PromptInput onSubmit={() => submitText(input)}>
+            <PromptInput
+              accept={ACCEPTED_IMAGE_TYPES}
+              maxFiles={MAX_IMAGES_PER_MESSAGE}
+              maxFileSize={MAX_IMAGE_BYTES}
+              multiple={false}
+              onError={(err) =>
+                setComposerError(
+                  err.code === 'accept'
+                    ? 'Attach a photo - JPEG, PNG, WebP or HEIC.'
+                    : err.code === 'max_file_size'
+                      ? 'That image is too large. Keep it under 10 MB.'
+                      : 'One photo per question.'
+                )
+              }
+              // The text comes from `input` rather than from the submitted
+              // message: the textarea is controlled here, and dictation writes
+              // into that same state. Only the files are read off the event.
+              onSubmit={(message) =>
+                submitMessage({ text: input, files: message.files })
+              }
+            >
+              <ComposerAttachments />
               <PromptInputTextarea
                 ref={composerRef}
                 onChange={(e) => {
                   setInput(e.target.value)
                   // Typing is the student moving on; the last dictation failure
                   // stops being news at that point.
-                  if (voiceError) setVoiceError(null)
+                  if (composerError) setComposerError(null)
                 }}
                 value={input}
                 placeholder="Ask about your syllabus…"
@@ -825,27 +1018,31 @@ export function ChatWorkspace({ userEmail }: { userEmail: string }) {
                     onTranscriptionChange={appendTranscript}
                     onAudioRecorded={transcribeRecording}
                   />
-                  {/* The disclaimer's slot doubles as the voice error's, so a
-                      failed dictation is named where the student is looking
-                      instead of adding a second line of chrome. */}
+                  <AttachImageButton disabled={!activeThreadId || uploading} />
+                  {/* The disclaimer's slot doubles as the composer's error line,
+                      so a failed dictation or upload is named where the student
+                      is looking instead of adding a second line of chrome. */}
                   <span
                     className={
-                      voiceError
+                      composerError
                         ? 'pl-1 text-destructive text-xs'
                         : 'pl-1 text-muted-foreground text-xs'
                     }
-                    role={voiceError ? 'alert' : undefined}
+                    role={composerError ? 'alert' : undefined}
                   >
-                    {voiceError ??
+                    {composerError ??
                       'Aristo can make mistakes. Check against your syllabus.'}
                   </span>
                 </PromptInputTools>
                 {/* status drives the icon: spinner while submitted, a stop
                     square while streaming, so a long answer stays interruptible. */}
-                <PromptInputSubmit
-                  status={status}
+                <ComposerSubmit
+                  busy={busy}
+                  disabled={!activeThreadId}
+                  hasText={Boolean(input.trim())}
                   onStop={stop}
-                  disabled={!busy && (!input.trim() || !activeThreadId)}
+                  status={status}
+                  uploading={uploading}
                 />
               </PromptInputFooter>
             </PromptInput>
